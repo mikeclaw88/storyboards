@@ -33,7 +33,7 @@ export function DebugOverlay() {
 
   if (!isVisible) return null;
 
-  const renderSlider = (label: string, value: number, onChange: (val: number) => void, min = -100, max = 100) => (
+  const renderSlider = (label: string, value: number, onChange: (val: number) => void, min = -200, max = 200) => (
     <div style={{ marginBottom: '5px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>{label}</span>
