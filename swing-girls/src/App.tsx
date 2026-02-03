@@ -10,6 +10,7 @@ import { PauseButton } from './components/PauseButton';
 import { PauseModal } from './components/PauseModal';
 import { ModeSelectionUI } from './components/ModeSelectionUI';
 import { useGameStore } from './stores/gameStore';
+import { DebugOverlay } from './components/DebugOverlay';
 
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
@@ -17,6 +18,7 @@ export default function App() {
 
   return (
     <div className="w-full h-full relative">
+      <DebugOverlay />
       <Canvas
         shadows={{ type: PCFSoftShadowMap }}
         camera={{

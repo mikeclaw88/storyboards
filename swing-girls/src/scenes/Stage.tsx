@@ -2,11 +2,13 @@ import { useRef, useEffect, useState, Suspense } from 'react';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useGameStore, isVideoCharacter } from '../stores/gameStore';
+import { useDebugStore } from '../stores/debugStore';
 import { AimController } from '../components/AimController';
 import { TeeBox } from '../components/TeeBox';
 import { TargetZones } from '../components/TargetZone';
 import { Terrain } from '../components/Terrain';
 import { Splat } from '../components/Splat';
+import { CollisionWireframe } from '../components/CollisionWireframe';
 import { useMotionConfig } from '../hooks/useMotionConfig';
 import { useSceneConfig } from '../hooks/useSceneConfig';
 import { SceneProps } from '../components/SceneProp';
@@ -22,13 +24,21 @@ const PLAY_MODE_MAX_POLAR_ANGLE = Math.PI / 2; // 90 degrees (horizontal)
 // Azimuth angle limits for play mode (left-right rotation for aiming)
 const PLAY_MODE_AZIMUTH_RANGE = (12 * Math.PI) / 180; // +/-12 degrees from center
 
+// Secondary Green Splat URL
+const GREEN_SPLAT_URL = './splats/hole1green.spz';
+
 /**
  * Training stage with floor and character
  */
 export function Stage() {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const screenMode = useGameStore((s) => s.screenMode);
+  const ballPos = useGameStore((s) => s.ball.position);
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
+  
+  // Debug state
+  const { showWireframe, splatSwitchDistance } = useDebugStore();
+
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
   const [isCameraFollowing, setIsCameraFollowing] = useState(false);
@@ -47,6 +57,21 @@ export function Stage() {
   const splatConfig = getSplatNode();
   const teeBoxConfig = getTeeBoxNode();
   const props = getProps();
+
+  // Determine which splat to show
+  // Assuming ball travels along +Z (or whatever direction fairway is)
+  // Distance from origin along Z axis
+  const distZ = ballPos[2];
+  // Since we rotated 180, forward might be negative Z or positive depending on world space.
+  // Actually, usually golf games align tee at 0 and green at +Z.
+  // Let's assume switch distance is magnitude from tee.
+  // Or just check if Z > switchDistance (if green is positive Z)
+  
+  // Simple check: use distance from (0,0,0)
+  const distFromTee = Math.sqrt(ballPos[0]*ballPos[0] + ballPos[2]*ballPos[2]);
+  
+  // Logic: Show Green Splat if further than switch distance
+  const useGreenSplat = distFromTee > splatSwitchDistance;
 
   // Track modifier keys for camera control
   useEffect(() => {
@@ -175,17 +200,28 @@ export function Stage() {
           </Suspense>
         </group>
       )}
+      
+      {/* Collision Wireframe Debug View */}
+      {showWireframe && <CollisionWireframe />}
 
-      {/* Gaussian Splat - loaded from .ply file, using scene config */}
-      {splatConfig.visible && (
-        <Splat
-          url={splatConfig.url}
-          position={[splatConfig.position.x, splatConfig.position.y, splatConfig.position.z]}
-          rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
-          scale={splatConfig.scale}
-          visible={splatConfig.visible}
-        />
-      )}
+      {/* Gaussian Splats */}
+      {/* Tee Splat */}
+      <Splat
+        url={splatConfig.url}
+        position={[splatConfig.position.x, splatConfig.position.y, splatConfig.position.z]}
+        rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
+        scale={splatConfig.scale}
+        visible={splatConfig.visible && !useGreenSplat}
+      />
+      
+      {/* Green Splat (uses same transform as Tee Splat for now) */}
+      <Splat
+        url={GREEN_SPLAT_URL}
+        position={[splatConfig.position.x, splatConfig.position.y, splatConfig.position.z]}
+        rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
+        scale={splatConfig.scale}
+        visible={splatConfig.visible && useGreenSplat}
+      />
 
       {/* Grid overlay - optional, can be removed */}
       {/* <Grid
