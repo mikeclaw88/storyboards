@@ -1,0 +1,41 @@
+{
+  "version": "1.0",
+  "name": "Urban Golf Range",
+  "description": "Rooftop driving range scene",
+  "terrain": {
+    "id": "terrain-001",
+    "name": "Main Terrain",
+    "url": "./terrains/terrain.terrain",
+    "position": { "x": 7, "y": -0.171, "z": 90 },
+    "rotation": { "x": 0, "y": 0, "z": 0 },
+    "scale": 1,
+    "visible": true
+  },
+  "splat": {
+    "id": "splat-001",
+    "name": "Background Splat",
+    "url": "./splats/Urban-Golf-Range.ply",
+    "position": { "x": 0, "y": 0, "z": 0 },
+    "rotation": { "x": 0, "y": 180, "z": 180 },
+    "scale": 16.537,
+    "visible": true
+  },
+  "teeBox": {
+    "id": "tee-001",
+    "name": "Tee Box",
+    "url": "./models/teebox/Teebox.glb",
+    "position": { "x": 0, "y": 0, "z": 0 },
+    "rotation": { "x": 0, "y": 0, "z": 0 },
+    "scale": 1,
+    "visible": true,
+    "tee": {
+      "id": "tee-peg-001",
+      "name": "Tee",
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "rotation": { "x": 0, "y": 0, "z": 0 },
+      "scale": 1,
+      "visible": true
+    }
+  },
+  "props": []
+}
