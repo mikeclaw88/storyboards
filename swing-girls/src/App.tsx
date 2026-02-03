@@ -11,6 +11,8 @@ import { PauseModal } from './components/PauseModal';
 import { ModeSelectionUI } from './components/ModeSelectionUI';
 import { useGameStore } from './stores/gameStore';
 import { DebugOverlay } from './components/DebugOverlay';
+import { LoadScreen } from './components/LoadScreen';
+import { GameHUD } from './components/GameHUD';
 
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
@@ -18,6 +20,7 @@ export default function App() {
 
   return (
     <div className="w-full h-full relative">
+      <LoadScreen />
       <DebugOverlay />
       <Canvas
         shadows={{ type: PCFSoftShadowMap }}
@@ -51,6 +54,7 @@ export default function App() {
         </>
       ) : (
         <>
+          <GameHUD />
           {/* Pause button - top right */}
           <div className="absolute top-6 right-6 z-10">
             <PauseButton />

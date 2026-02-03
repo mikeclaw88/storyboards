@@ -9,6 +9,7 @@ import { TargetZones } from '../components/TargetZone';
 import { Terrain } from '../components/Terrain';
 import { Splat } from '../components/Splat';
 import { CollisionWireframe } from '../components/CollisionWireframe';
+import { GolfHole } from '../components/GolfHole';
 import { useMotionConfig } from '../hooks/useMotionConfig';
 import { useSceneConfig } from '../hooks/useSceneConfig';
 import { SceneProps } from '../components/SceneProp';
@@ -218,6 +219,7 @@ export function Stage() {
       <DynamicCharacter />
       <DynamicGolfTee />
       <DynamicGolfBall />
+      <GolfHole />
       <AimController controlsRef={controlsRef} />
       <TargetZones />
       <SceneProps props={props} />

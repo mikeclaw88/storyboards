@@ -61,6 +61,8 @@ interface SwingResult {
   accuracy: number;   // 0-100, based on horizontal deviation (100 = perfect)
   score: number;      // Combined score
   direction: number;  // -1 to 1, horizontal direction (-1 = left, 0 = center, 1 = right)
+  distanceToHole: number; // Distance to hole in meters
+  shotScore: number; // Score for this shot (100 - distance)
 }
 
 interface BallState {
@@ -80,6 +82,12 @@ interface GameState {
 
   // Topgolf state
   topgolf: TopgolfState;
+
+  // Hole Configuration
+  holePosition: [number, number, number];
+  shotsRemaining: number;
+  maxShots: number;
+  totalScore: number;
 
   // Character selection
   characterIndex: number;
@@ -145,11 +153,22 @@ const INITIAL_TOPGOLF_STATE: TopgolfState = {
   gameComplete: false,
 };
 
-export const useGameStore = create<GameState>((set) => ({
+// Default Hole Position (Z=150 meters down fairway)
+const DEFAULT_HOLE_POS: [number, number, number] = [0, 0, 150];
+const MAX_SHOTS = 4;
+
+export const useGameStore = create<GameState>((set, get) => ({
   screenMode: 'selection',
   isPaused: false,
   gameMode: 'practice',
   topgolf: { ...INITIAL_TOPGOLF_STATE },
+  
+  // Hole Defaults
+  holePosition: DEFAULT_HOLE_POS,
+  shotsRemaining: MAX_SHOTS,
+  maxShots: MAX_SHOTS,
+  totalScore: 0,
+
   characterIndex: 0,
   selectedCharacter: CHARACTERS[0]?.id || 'default',
   swingPhase: 'ready',
@@ -167,7 +186,9 @@ export const useGameStore = create<GameState>((set) => ({
     swingResult: null,
     pullProgress: 0,
     ball: { ...INITIAL_BALL_STATE },
-    // Reset topgolf state when starting practice mode
+    // Reset game state
+    shotsRemaining: MAX_SHOTS,
+    totalScore: 0,
     topgolf: state.gameMode === 'practice' ? { ...INITIAL_TOPGOLF_STATE } : state.topgolf,
   })),
   stopPlay: () => set({
@@ -218,14 +239,40 @@ export const useGameStore = create<GameState>((set) => ({
   // Ball actions
   launchBall: () => set((state) => ({
     ball: { ...state.ball, isFlying: true },
+    shotsRemaining: Math.max(0, state.shotsRemaining - 1),
   })),
   updateBallPosition: (position) => set((state) => ({
     ball: { ...state.ball, position },
   })),
-  landBall: (distance) => set((state) => ({
-    ball: { ...state.ball, isFlying: false, distanceTraveled: distance },
-    swingPhase: 'finished',
-  })),
+  landBall: (distance) => set((state) => {
+    // Calculate distance to hole
+    const ballPos = state.ball.position;
+    const holePos = state.holePosition;
+    const distToHole = Math.sqrt(
+      Math.pow(ballPos[0] - holePos[0], 2) +
+      Math.pow(ballPos[2] - holePos[2], 2)
+    );
+    
+    // Score logic: 100 - distance (clamped to 0)
+    const shotScore = Math.max(0, Math.round(100 - distToHole));
+    const newTotalScore = state.totalScore + shotScore;
+
+    // Update swing result with score info if it exists, or create placeholder
+    const currentResult = state.swingResult || { 
+      power: 0, accuracy: 0, score: 0, direction: 0, distanceToHole: 0, shotScore: 0 
+    };
+
+    return {
+      ball: { ...state.ball, isFlying: false, distanceTraveled: distance },
+      swingPhase: 'finished',
+      totalScore: newTotalScore,
+      swingResult: {
+        ...currentResult,
+        distanceToHole: distToHole,
+        shotScore: shotScore,
+      }
+    };
+  }),
   resetBall: () => set({ ball: { ...INITIAL_BALL_STATE } }),
 
   // Game mode actions
