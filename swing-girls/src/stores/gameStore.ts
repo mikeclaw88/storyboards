@@ -154,8 +154,8 @@ const INITIAL_TOPGOLF_STATE: TopgolfState = {
   gameComplete: false,
 };
 
-// Default Hole Position (Z=150 meters down fairway)
-const DEFAULT_HOLE_POS: [number, number, number] = [0, 0, 150];
+// Default Hole Position (Z=224 meters, Y=-2)
+const DEFAULT_HOLE_POS: [number, number, number] = [0, -2, 224];
 const MAX_SHOTS = 4;
 
 export const useGameStore = create<GameState>((set, get) => ({
