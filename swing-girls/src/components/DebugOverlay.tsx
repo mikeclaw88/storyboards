@@ -9,6 +9,9 @@ export function DebugOverlay() {
   const ballPhase = useGameStore((s) => s.ball.isFlying ? 'Flying' : 'Ground');
   const getHeight = useTerrainStore((s) => s.getHeightAtWorldPosition);
   
+  const holePos = useGameStore((s) => s.holePosition);
+  const setHolePos = useGameStore((s) => s.setHolePosition);
+  
   const { 
     showWireframe, 
     toggleWireframe, 
@@ -119,6 +122,13 @@ export function DebugOverlay() {
         {renderSlider('X', teeSplatOffset.x, (v) => setTeeSplatOffset('x', v))}
         {renderSlider('Y', teeSplatOffset.y, (v) => setTeeSplatOffset('y', v))}
         {renderSlider('Z', teeSplatOffset.z, (v) => setTeeSplatOffset('z', v))}
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Hole Position</strong>
+        {renderSlider('X', holePos[0], (v) => setHolePos([v, holePos[1], holePos[2]]), -100, 100)}
+        {renderSlider('Y', holePos[1], (v) => setHolePos([holePos[0], v, holePos[2]]), -10, 50)}
+        {renderSlider('Z', holePos[2], (v) => setHolePos([holePos[0], holePos[1], v]), 0, 400)}
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>

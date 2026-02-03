@@ -85,6 +85,7 @@ interface GameState {
 
   // Hole Configuration
   holePosition: [number, number, number];
+  setHolePosition: (pos: [number, number, number]) => void;
   shotsRemaining: number;
   maxShots: number;
   totalScore: number;
@@ -168,6 +169,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   shotsRemaining: MAX_SHOTS,
   maxShots: MAX_SHOTS,
   totalScore: 0,
+
+  setHolePosition: (pos) => set({ holePosition: pos }),
 
   characterIndex: 0,
   selectedCharacter: CHARACTERS[0]?.id || 'default',
