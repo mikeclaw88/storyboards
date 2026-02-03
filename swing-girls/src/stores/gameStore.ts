@@ -132,7 +132,7 @@ interface GameState {
 const INITIAL_BALL_STATE: BallState = {
   isVisible: true,
   isFlying: false,
-  position: [-0.5, 0.02, 0.3],
+  position: [17.21, 0.03, 219.02],
   distanceTraveled: 0,
 };
 

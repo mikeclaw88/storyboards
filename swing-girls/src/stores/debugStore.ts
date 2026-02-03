@@ -18,9 +18,9 @@ interface DebugState {
 export const useDebugStore = create<DebugState>((set) => ({
   showWireframe: false,
   freeRoamCamera: false,
-  splatSwitchDistance: 150,
-  teeSplatOffset: { x: 0, y: 0, z: 0 },
-  greenSplatOffset: { x: 0, y: 0, z: 0 },
+  splatSwitchDistance: 86,
+  teeSplatOffset: { x: 0, y: 1, z: 0 },
+  greenSplatOffset: { x: 0, y: 1, z: 147 },
   
   setShowWireframe: (show) => set({ showWireframe: show }),
   toggleWireframe: () => set((state) => ({ showWireframe: !state.showWireframe })),
