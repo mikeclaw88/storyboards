@@ -188,7 +188,7 @@ export function Stage() {
       )}
 
       {/* Grid overlay - optional, can be removed */}
-      <Grid
+      {/* <Grid
         args={[150, 200]}
         cellSize={5}
         cellThickness={0.3}
@@ -200,7 +200,7 @@ export function Stage() {
         fadeStrength={1}
         followCamera={false}
         position={[terrainConfig.position.x, terrainConfig.position.y + 0.05, terrainConfig.position.z]}
-      />
+      /> */}
 
       {/* Tee Box - GLB model from scene config */}
       {teeBoxConfig.visible && (

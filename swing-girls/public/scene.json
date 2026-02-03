@@ -9,15 +9,15 @@
     "position": { "x": 7, "y": -0.171, "z": 90 },
     "rotation": { "x": 0, "y": 0, "z": 0 },
     "scale": 1,
-    "visible": true
+    "visible": false
   },
   "splat": {
     "id": "splat-001",
-    "name": "Background Splat",
-    "url": "./splats/Urban-Golf-Range.ply",
+    "name": "Hole 1 Tee",
+    "url": "./splats/hole1tee.spz",
     "position": { "x": 0, "y": 0, "z": 0 },
-    "rotation": { "x": 0, "y": 180, "z": 180 },
-    "scale": 16.537,
+    "rotation": { "x": 0, "y": 0, "z": 0 },
+    "scale": 1,
     "visible": true
   },
   "teeBox": {

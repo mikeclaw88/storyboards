@@ -26,6 +26,7 @@ export function Splat({
 
   useEffect(() => {
     // Create splat mesh
+    // @ts-ignore
     const splat = new SplatMesh({ url });
     splatRef.current = splat;
 

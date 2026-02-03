@@ -17,24 +17,24 @@
       "z": 0
     },
     "scale": 2,
-    "visible": true
+    "visible": false
   },
   "splat": {
     "id": "splat-001",
-    "name": "Background Splat",
-    "url": null,
+    "name": "Hole 1 Tee",
+    "url": "./splats/hole1tee.spz",
     "position": {
       "x": 0,
-      "y": -0.663,
-      "z": -50.213
+      "y": 2,
+      "z": 0
     },
     "rotation": {
-      "x": 2.2,
-      "y": 180,
-      "z": 180
+      "x": 0,
+      "y": 0,
+      "z": 0
     },
-    "scale": 61.087,
-    "visible": false
+    "scale": 10,
+    "visible": true
   },
   "teeBox": {
     "id": "tee-001",
