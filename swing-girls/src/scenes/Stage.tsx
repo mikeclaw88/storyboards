@@ -58,20 +58,9 @@ export function Stage() {
   const teeBoxConfig = getTeeBoxNode();
   const props = getProps();
 
-  // Determine which splat to show
-  // Assuming ball travels along +Z (or whatever direction fairway is)
-  // Distance from origin along Z axis
-  const distZ = ballPos[2];
-  // Since we rotated 180, forward might be negative Z or positive depending on world space.
-  // Actually, usually golf games align tee at 0 and green at +Z.
-  // Let's assume switch distance is magnitude from tee.
-  // Or just check if Z > switchDistance (if green is positive Z)
-  
-  // Simple check: use distance from (0,0,0)
-  const distFromTee = Math.sqrt(ballPos[0]*ballPos[0] + ballPos[2]*ballPos[2]);
-  
-  // Logic: Show Green Splat if further than switch distance
-  const useGreenSplat = distFromTee > splatSwitchDistance;
+  // Determine which splat to show (Additive logic)
+  const distFromOrigin = Math.sqrt(ballPos[0]*ballPos[0] + ballPos[2]*ballPos[2]);
+  const showGreenSplat = distFromOrigin > splatSwitchDistance;
 
   // Track modifier keys for camera control
   useEffect(() => {
@@ -81,7 +70,6 @@ export function Stage() {
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Alt') {
-        // Capture current polar angle before releasing Alt
         if (controlsRef.current) {
           setLockedPolarAngle(controlsRef.current.getPolarAngle());
         }
@@ -97,7 +85,7 @@ export function Stage() {
     };
   }, []);
 
-  // When freeRoamCamera is enabled, allow full rotation and zoom
+  // Camera Constraints Logic
   const minPolarAngle = freeRoamCamera 
     ? 0.1 
     : (screenMode === 'playing'
@@ -118,25 +106,29 @@ export function Stage() {
     ? centerAzimuthAngle + PLAY_MODE_AZIMUTH_RANGE
     : Infinity;
 
-  // Freeroam lets you zoom way out
+  const minDistance = screenMode === 'playing' && isVideoCharacter(selectedCharacter) ? 2 : 3;
   const maxDistance = freeRoamCamera ? 500 : (screenMode === 'playing' ? 10 : 50);
+
+  const enableCameraInSelection = screenMode === 'selection' && isCtrlPressed;
+  
+  const enableRotate = freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
+  const enableZoom = freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
+  const enablePan = freeRoamCamera || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed));
 
   return (
     <>
-      {/* Camera Controller */}
       <CameraController
         controlsRef={controlsRef}
         onFollowStateChange={setIsCameraFollowing}
         onCenterAzimuthChange={setCenterAzimuthAngle}
       />
 
-      {/* Camera Controls - disabled during follow camera mode */}
       <OrbitControls
         ref={controlsRef}
         makeDefault
-        enableRotate={freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection))}
-        enableZoom={freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection))}
-        enablePan={freeRoamCamera || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed))}
+        enableRotate={enableRotate}
+        enableZoom={enableZoom}
+        enablePan={enablePan}
         minPolarAngle={minPolarAngle}
         maxPolarAngle={maxPolarAngle}
         minAzimuthAngle={minAzimuthAngle}
@@ -146,7 +138,6 @@ export function Stage() {
         target={[0, 1, 0]}
       />
 
-      {/* Lighting - bright and vibrant */}
       <ambientLight intensity={0.8} />
       <directionalLight
         position={[8, 15, 8]}
@@ -167,10 +158,8 @@ export function Stage() {
         intensity={0.6}
       />
 
-      {/* Environment */}
       <Environment preset="sunset" background={false} />
 
-      {/* Terrain - loaded from .terrain file, using scene config */}
       {terrainConfig.visible && (
         <group
           position={[terrainConfig.position.x, terrainConfig.position.y, terrainConfig.position.z]}
@@ -181,15 +170,7 @@ export function Stage() {
             (terrainConfig.rotation.z * Math.PI) / 180,
           ]}
         >
-          <Suspense fallback={
-            <mesh
-              rotation={[-Math.PI / 2, 0, 0]}
-              receiveShadow
-            >
-              <planeGeometry args={[150, 200]} />
-              <meshStandardMaterial color="#6abf69" roughness={0.7} />
-            </mesh>
-          }>
+          <Suspense fallback={null}>
             <Terrain
               url={terrainConfig.url}
               position={[0, 0, 0]}
@@ -200,11 +181,9 @@ export function Stage() {
         </group>
       )}
       
-      {/* Collision Wireframe Debug View */}
       {showWireframe && <CollisionWireframe />}
 
-      {/* Gaussian Splats */}
-      {/* Tee Splat - Always Visible (Base Layer) */}
+      {/* Tee Splat (Always Visible) */}
       <Splat
         url={splatConfig.url}
         position={[
@@ -217,7 +196,7 @@ export function Stage() {
         visible={splatConfig.visible}
       />
       
-      {/* Green Splat - Additive Layer (Visible when distance > threshold) */}
+      {/* Green Splat (Additive) */}
       <Splat
         url={GREEN_SPLAT_URL}
         position={[
@@ -227,47 +206,20 @@ export function Stage() {
         ]}
         rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
         scale={splatConfig.scale}
-        visible={splatConfig.visible && useGreenSplat}
+        visible={splatConfig.visible && showGreenSplat}
       />
 
-      {/* Grid overlay - optional, can be removed */}
-      {/* <Grid
-        args={[150, 200]}
-        cellSize={5}
-        cellThickness={0.3}
-        cellColor="#7dd87d"
-        sectionSize={25}
-        sectionThickness={0.5}
-        sectionColor="#5cb85c"
-        fadeDistance={150}
-        fadeStrength={1}
-        followCamera={false}
-        position={[terrainConfig.position.x, terrainConfig.position.y + 0.05, terrainConfig.position.z]}
-      /> */}
-
-      {/* Tee Box - GLB model from scene config */}
       {teeBoxConfig.visible && (
         <Suspense fallback={null}>
           <TeeBox config={teeBoxConfig} />
         </Suspense>
       )}
 
-      {/* Character */}
       <DynamicCharacter />
-
-      {/* Golf Tee - always visible */}
       <DynamicGolfTee />
-
-      {/* Golf Ball - only in play mode */}
       <DynamicGolfBall />
-
-      {/* Aim Controller - syncs camera angle to store for ball physics */}
       <AimController controlsRef={controlsRef} />
-
-      {/* Topgolf Target Zones - only in topgolf mode */}
       <TargetZones />
-
-      {/* Scene Props - from scene config */}
       <SceneProps props={props} />
     </>
   );
