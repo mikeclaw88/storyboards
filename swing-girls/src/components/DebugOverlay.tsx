@@ -100,7 +100,7 @@ export function DebugOverlay() {
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
         <strong>Settings</strong>
-        {renderSlider('Switch Dist', splatSwitchDistance, setSplatSwitchDistance, 0, 300)}
+        {renderSlider('Add Green Dist', splatSwitchDistance, setSplatSwitchDistance, 0, 300)}
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>

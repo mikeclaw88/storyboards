@@ -205,7 +205,7 @@ export function Stage() {
       {showWireframe && <CollisionWireframe />}
 
       {/* Gaussian Splats */}
-      {/* Tee Splat */}
+      {/* Tee Splat - Always Visible (Base Layer) */}
       <Splat
         url={splatConfig.url}
         position={[
@@ -215,10 +215,10 @@ export function Stage() {
         ]}
         rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
         scale={splatConfig.scale}
-        visible={splatConfig.visible && !useGreenSplat}
+        visible={splatConfig.visible}
       />
       
-      {/* Green Splat (uses same transform as Tee Splat for now, plus offset) */}
+      {/* Green Splat - Additive Layer (Visible when distance > threshold) */}
       <Splat
         url={GREEN_SPLAT_URL}
         position={[
