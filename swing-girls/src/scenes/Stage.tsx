@@ -38,7 +38,7 @@ export function Stage() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   
   // Debug state
-  const { showWireframe, freeRoamCamera, splatSwitchDistance, teeSplatOffset, greenSplatOffset } = useDebugStore();
+  const { showWireframe, freeRoamCamera, showTeeSplat, showGreenSplat, teeSplatOffset, greenSplatOffset } = useDebugStore();
 
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -59,9 +59,9 @@ export function Stage() {
   const teeBoxConfig = getTeeBoxNode();
   const props = getProps();
 
-  // Determine which splat to show (Additive logic)
-  const distFromOrigin = Math.sqrt(ballPos[0]*ballPos[0] + ballPos[2]*ballPos[2]);
-  const showGreenSplat = distFromOrigin > splatSwitchDistance;
+  // Determine which splat to show (Legacy logic removed)
+  // const distFromOrigin = Math.sqrt(ballPos[0]*ballPos[0] + ballPos[2]*ballPos[2]);
+  // const showGreenSplat = distFromOrigin > splatSwitchDistance;
 
   // Track modifier keys for camera control
   useEffect(() => {
@@ -184,7 +184,7 @@ export function Stage() {
       
       {showWireframe && <CollisionWireframe />}
 
-      {/* Tee Splat (Always Visible) */}
+      {/* Tee Splat (Toggled) */}
       <Splat
         url={splatConfig.url}
         position={[
@@ -194,10 +194,10 @@ export function Stage() {
         ]}
         rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
         scale={splatConfig.scale}
-        visible={splatConfig.visible}
+        visible={splatConfig.visible && showTeeSplat}
       />
       
-      {/* Green Splat (Additive) */}
+      {/* Green Splat (Toggled) */}
       <Splat
         url={GREEN_SPLAT_URL}
         position={[

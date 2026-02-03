@@ -17,8 +17,10 @@ export function DebugOverlay() {
     toggleWireframe, 
     freeRoamCamera,
     toggleFreeRoamCamera,
-    splatSwitchDistance, 
-    setSplatSwitchDistance,
+    showTeeSplat,
+    toggleShowTeeSplat,
+    showGreenSplat,
+    toggleShowGreenSplat,
     teeSplatOffset,
     setTeeSplatOffset,
     greenSplatOffset,
@@ -113,8 +115,25 @@ export function DebugOverlay() {
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
-        <strong>Settings</strong>
-        {renderSlider('Add Green Dist', splatSwitchDistance, setSplatSwitchDistance, 0, 300)}
+        <strong>Splat Visibility</strong>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '5px' }}>
+          <input 
+            type="checkbox" 
+            checked={showTeeSplat} 
+            onChange={toggleShowTeeSplat}
+            style={{ marginRight: '5px' }}
+          />
+          Show Tee Splat
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+          <input 
+            type="checkbox" 
+            checked={showGreenSplat} 
+            onChange={toggleShowGreenSplat}
+            style={{ marginRight: '5px' }}
+          />
+          Show Green Splat
+        </label>
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
