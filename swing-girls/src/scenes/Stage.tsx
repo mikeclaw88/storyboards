@@ -37,7 +37,7 @@ export function Stage() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   
   // Debug state
-  const { showWireframe, splatSwitchDistance, teeSplatOffset, greenSplatOffset } = useDebugStore();
+  const { showWireframe, freeRoamCamera, splatSwitchDistance, teeSplatOffset, greenSplatOffset } = useDebugStore();
 
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -97,30 +97,29 @@ export function Stage() {
     };
   }, []);
 
-  // In play mode, lock vertical rotation by default. Alt key unlocks it.
-  // When Alt is released, camera stays at the rotated position (lockedPolarAngle).
-  // When camera is following ball, allow any polar angle to prevent snapping
-  const minPolarAngle = screenMode === 'playing'
-    ? (isCameraFollowing ? 0.1 : (isAltPressed ? PLAY_MODE_MIN_POLAR_ANGLE : lockedPolarAngle))
-    : 0.2;
-  const maxPolarAngle = screenMode === 'playing'
-    ? (isCameraFollowing ? Math.PI - 0.1 : (isAltPressed ? PLAY_MODE_MAX_POLAR_ANGLE : lockedPolarAngle))
-    : Math.PI / 2.1;
+  // When freeRoamCamera is enabled, allow full rotation and zoom
+  const minPolarAngle = freeRoamCamera 
+    ? 0.1 
+    : (screenMode === 'playing'
+      ? (isCameraFollowing ? 0.1 : (isAltPressed ? PLAY_MODE_MIN_POLAR_ANGLE : lockedPolarAngle))
+      : 0.2);
+      
+  const maxPolarAngle = freeRoamCamera
+    ? Math.PI - 0.1
+    : (screenMode === 'playing'
+      ? (isCameraFollowing ? Math.PI - 0.1 : (isAltPressed ? PLAY_MODE_MAX_POLAR_ANGLE : lockedPolarAngle))
+      : Math.PI / 2.1);
 
-  // In play mode, limit horizontal rotation (aiming) to +/-10 degrees from initial position
-  // When camera is following ball, allow free rotation
-  const minAzimuthAngle = screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+  const minAzimuthAngle = !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle - PLAY_MODE_AZIMUTH_RANGE
     : -Infinity;
-  const maxAzimuthAngle = screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+    
+  const maxAzimuthAngle = !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle + PLAY_MODE_AZIMUTH_RANGE
     : Infinity;
 
-  // Closer min distance for video characters
-  const minDistance = screenMode === 'playing' && isVideoCharacter(selectedCharacter) ? 2 : 3;
-
-  // In selection mode, enable camera controls only when Ctrl is pressed
-  const enableCameraInSelection = screenMode === 'selection' && isCtrlPressed;
+  // Freeroam lets you zoom way out
+  const maxDistance = freeRoamCamera ? 500 : (screenMode === 'playing' ? 10 : 50);
 
   return (
     <>
@@ -135,15 +134,15 @@ export function Stage() {
       <OrbitControls
         ref={controlsRef}
         makeDefault
-        enableRotate={!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)}
-        enableZoom={!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)}
-        enablePan={!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed)}
+        enableRotate={freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection))}
+        enableZoom={freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection))}
+        enablePan={freeRoamCamera || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed))}
         minPolarAngle={minPolarAngle}
         maxPolarAngle={maxPolarAngle}
         minAzimuthAngle={minAzimuthAngle}
         maxAzimuthAngle={maxAzimuthAngle}
         minDistance={minDistance}
-        maxDistance={screenMode === 'playing' ? 10 : 50}
+        maxDistance={maxDistance}
         target={[0, 1, 0]}
       />
 

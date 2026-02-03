@@ -12,6 +12,8 @@ export function DebugOverlay() {
   const { 
     showWireframe, 
     toggleWireframe, 
+    freeRoamCamera,
+    toggleFreeRoamCamera,
     splatSwitchDistance, 
     setSplatSwitchDistance,
     teeSplatOffset,
@@ -87,7 +89,7 @@ export function DebugOverlay() {
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '5px' }}>
           <input 
             type="checkbox" 
             checked={showWireframe} 
@@ -95,6 +97,15 @@ export function DebugOverlay() {
             style={{ marginRight: '5px' }}
           />
           Show Collision Mesh
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+          <input 
+            type="checkbox" 
+            checked={freeRoamCamera} 
+            onChange={toggleFreeRoamCamera}
+            style={{ marginRight: '5px' }}
+          />
+          Freeroam Camera
         </label>
       </div>
 
