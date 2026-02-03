@@ -37,7 +37,7 @@ export function Stage() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   
   // Debug state
-  const { showWireframe, splatSwitchDistance } = useDebugStore();
+  const { showWireframe, splatSwitchDistance, teeSplatOffset, greenSplatOffset } = useDebugStore();
 
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -208,16 +208,24 @@ export function Stage() {
       {/* Tee Splat */}
       <Splat
         url={splatConfig.url}
-        position={[splatConfig.position.x, splatConfig.position.y, splatConfig.position.z]}
+        position={[
+          splatConfig.position.x + teeSplatOffset.x, 
+          splatConfig.position.y + teeSplatOffset.y, 
+          splatConfig.position.z + teeSplatOffset.z
+        ]}
         rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
         scale={splatConfig.scale}
         visible={splatConfig.visible && !useGreenSplat}
       />
       
-      {/* Green Splat (uses same transform as Tee Splat for now) */}
+      {/* Green Splat (uses same transform as Tee Splat for now, plus offset) */}
       <Splat
         url={GREEN_SPLAT_URL}
-        position={[splatConfig.position.x, splatConfig.position.y, splatConfig.position.z]}
+        position={[
+          splatConfig.position.x + greenSplatOffset.x, 
+          splatConfig.position.y + greenSplatOffset.y, 
+          splatConfig.position.z + greenSplatOffset.z
+        ]}
         rotation={[splatConfig.rotation.x, splatConfig.rotation.y, splatConfig.rotation.z]}
         scale={splatConfig.scale}
         visible={splatConfig.visible && useGreenSplat}

@@ -9,7 +9,16 @@ export function DebugOverlay() {
   const ballPhase = useGameStore((s) => s.ball.isFlying ? 'Flying' : 'Ground');
   const getHeight = useTerrainStore((s) => s.getHeightAtWorldPosition);
   
-  const { showWireframe, toggleWireframe, splatSwitchDistance, setSplatSwitchDistance } = useDebugStore();
+  const { 
+    showWireframe, 
+    toggleWireframe, 
+    splatSwitchDistance, 
+    setSplatSwitchDistance,
+    teeSplatOffset,
+    setTeeSplatOffset,
+    greenSplatOffset,
+    setGreenSplatOffset
+  } = useDebugStore();
   
   const groundHeight = getHeight(ballPos[0], ballPos[2]);
   
@@ -23,6 +32,23 @@ export function DebugOverlay() {
   }, []);
 
   if (!isVisible) return null;
+
+  const renderSlider = (label: string, value: number, onChange: (val: number) => void, min = -100, max = 100) => (
+    <div style={{ marginBottom: '5px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <input 
+        type="range" 
+        min={min} 
+        max={max} 
+        value={value} 
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={{ width: '100%' }}
+      />
+    </div>
+  );
 
   return (
     <div style={{
@@ -38,7 +64,9 @@ export function DebugOverlay() {
       zIndex: 9999,
       border: '1px solid #0f0',
       borderRadius: '4px',
-      width: '250px'
+      width: '300px',
+      maxHeight: '90vh',
+      overflowY: 'auto'
     }}>
       <h3 style={{ margin: '0 0 10px 0', borderBottom: '1px solid #0f0' }}>DEBUG MODE (`)</h3>
       
@@ -70,17 +98,23 @@ export function DebugOverlay() {
         </label>
       </div>
 
-      <div style={{ marginTop: '10px' }}>
-        <strong>Splat Switch Dist (Z):</strong>
-        <input 
-          type="range" 
-          min="0" 
-          max="300" 
-          value={splatSwitchDistance} 
-          onChange={(e) => setSplatSwitchDistance(Number(e.target.value))}
-          style={{ width: '100%' }}
-        />
-        <div style={{ textAlign: 'right' }}>{splatSwitchDistance}m</div>
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Settings</strong>
+        {renderSlider('Switch Dist', splatSwitchDistance, setSplatSwitchDistance, 0, 300)}
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Tee Splat Offset</strong>
+        {renderSlider('X', teeSplatOffset.x, (v) => setTeeSplatOffset('x', v))}
+        {renderSlider('Y', teeSplatOffset.y, (v) => setTeeSplatOffset('y', v))}
+        {renderSlider('Z', teeSplatOffset.z, (v) => setTeeSplatOffset('z', v))}
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Green Splat Offset</strong>
+        {renderSlider('X', greenSplatOffset.x, (v) => setGreenSplatOffset('x', v))}
+        {renderSlider('Y', greenSplatOffset.y, (v) => setGreenSplatOffset('y', v))}
+        {renderSlider('Z', greenSplatOffset.z, (v) => setGreenSplatOffset('z', v))}
       </div>
     </div>
   );
