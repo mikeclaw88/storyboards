@@ -57,7 +57,7 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
         swingResult.direction,
         aimAngle
       );
-      flightStateRef.current = createInitialFlightState(startPosition, velocity);
+      flightStateRef.current = createInitialFlightState(startPosition, velocity, swingResult.sidespin ?? 0);
     }
 
     if (!ball.isFlying) {
@@ -112,7 +112,9 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
         newState.position[2]
       );
 
-      updateBallPosition(newState.position);
+      // Update store: position + live distance
+      const liveDistance = calculateDistance(startPosition, newState.position);
+      updateBallPosition(newState.position, liveDistance);
 
       // In topgolf mode: check if ball touched ground inside a target zone
       // If so, stop immediately without rolling

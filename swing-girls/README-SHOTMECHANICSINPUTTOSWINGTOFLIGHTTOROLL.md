@@ -18,7 +18,7 @@ Complete pipeline from user gesture to final scoring.
 
 **Source:** `src/components/SwingButton.tsx`
 
-The swing gesture is a two-phase drag inside a 60×120 px touch area:
+The swing gesture is a two-phase drag inside a 132×160 px touch area (3 lanes of 44 px):
 
 ### Pull Phase
 1. User touches the swing area → phase becomes `pulling`.
@@ -26,7 +26,7 @@ The swing gesture is a two-phase drag inside a 60×120 px touch area:
    ```
    pullProgress = min(1, maxPullDistance / MAX_PULL_DISTANCE)
    ```
-   where `MAX_PULL_DISTANCE = 60 px`.
+   where `MAX_PULL_DISTANCE = 80 px`.
 3. When `pullProgress ≥ 0.95`, the Power Arc bar begins animating (see §2).
 
 ### Swing Phase
@@ -36,8 +36,10 @@ The swing gesture is a two-phase drag inside a 60×120 px touch area:
 | Value       | Derivation |
 |-------------|-----------|
 | **power**   | Read from `arcPower` in the game store (set by the Power Arc timer — see §2) |
-| **accuracy**| `max(0, 100 − horizontalDeviation × 2)` where `horizontalDeviation` is the absolute pixel distance the finger drifted from the start X |
-| **direction**| `clamp(−horizontalMove / 40, −1, 1)`, **inverted** — dragging right sends the ball left and vice versa |
+| **accuracy**| Smoothness-based: `max(0, round(100 − jitter × 300))` where jitter is the average `|deltaNormalizedX|` between consecutive upswing samples (see §1.5) |
+| **direction**| Average `normalizedX` of last few upswing samples, inverted and clamped to [-1, 1] (see §1.5) |
+| **sidespin** | Weighted-deviation integral of finger path curvature during upswing, clamped [-1, 1] (see §1.5) |
+| **shotType** | Classified from sidespin + direction: straight, draw, fade, big_draw, big_fade, push, pull (see §1.5) |
 | **score**   | `round(power × 0.5 + accuracy × 0.5)` (display only) |
 
 ### Fail Conditions
@@ -45,6 +47,100 @@ The swing resets without launching if any of:
 - Pull distance < 30 px
 - Swing-up distance < 30 px
 - Release position is still in the bottom half of the area
+
+---
+
+## 1.5. Shot Shaping (Draw/Fade)
+
+**Source:** `src/components/SwingButton.tsx`, `src/utils/ballPhysics.ts`
+
+The swing area supports intentional shot shaping (draws, fades, pushes, pulls) via continuous finger-path tracking during the upswing.
+
+### 3-Lane UI
+
+The swing area is **132x160 px** with 3 lanes of 44 px each, separated by two vertical dividers at x=44 and x=88 (white, 15% opacity). The dot size is 24 px and max pull distance is 80 px.
+
+### Curve Tracking (Upswing)
+
+When the finger starts moving upward past the pull-end position, a curve accumulator begins recording samples:
+
+```
+normalizedX = (posX - centerX) / halfWidth    → range [-1, 1]
+yProgress   = (pullEndY - clientY) / swingRange → range [0, 1]
+```
+
+### Sidespin Computation (Weighted-Deviation Integral)
+
+At release, the sidespin is computed from the accumulated curve samples:
+
+1. **Baseline:** straight line from first to last sample
+2. **Deviation:** each sample's `normalizedX` minus expected position on baseline
+3. **Weight:** bell curve peaking at `yProgress = 0.5`:
+   ```
+   bellWeight = e^(-8 × (yProgress - 0.5)²)
+   ```
+4. **Result:**
+   ```
+   weightedAvgDeviation = Σ(deviation × bellWeight) / Σ(bellWeight)
+   sidespin = clamp(-weightedAvgDeviation × 2.5, -1, 1)
+   ```
+
+Negative sidespin = draw (ball curves right-to-left). Positive = fade (left-to-right).
+
+### Shot Type Classification
+
+| Condition | Label |
+|-----------|-------|
+| `|sidespin| < 0.15` and `|direction| < 0.3` | **STRAIGHT** |
+| `|sidespin| < 0.15` and `|direction| >= 0.3` | **PUSH** (dir > 0) / **PULL** (dir < 0) |
+| `0.15 <= |sidespin| < 0.5` | **DRAW** (spin < 0) / **FADE** (spin > 0) |
+| `|sidespin| >= 0.5` | **BIG DRAW** (spin < 0) / **BIG FADE** (spin > 0) |
+
+A live "DRAW" or "FADE" text indicator appears below the swing area during the upswing when `|liveSpin| > 0.15`.
+
+### Accuracy (Smoothness-Based)
+
+Accuracy is now based on path smoothness (jitter) rather than horizontal deviation:
+```
+jitter   = avg of |deltaNormalizedX| between consecutive upswing samples
+accuracy = max(0, round(100 - jitter × 300))
+```
+
+This means intentional lateral movement (draws/fades) is not penalized — only erratic zig-zagging reduces accuracy.
+
+### Direction
+
+Direction is computed from the average `normalizedX` of the last few upswing samples, inverted and clamped to [-1, 1].
+
+### Lateral Magnus Force (Sidespin Physics)
+
+During flight, sidespin produces a lateral force perpendicular to the ball's horizontal velocity:
+
+```
+perpX = -vz / horizontalSpeed
+perpZ = vx / horizontalSpeed
+
+SIDESPIN_COEFF = 0.10
+sideMagnitude = 0.5 × ρ × v² × SIDESPIN_COEFF × A / m
+
+effectiveSpin = sidespin × e^(-0.3 × flightTime)    // spin decay
+
+sideForceX = perpX × sideMagnitude × effectiveSpin
+sideForceZ = perpZ × sideMagnitude × effectiveSpin
+```
+
+The spin decays exponentially over flight time (decay rate 0.3/s), making the curve strongest early in flight and straightening out over time. Sidespin is set to 0 when the ball transitions to rolling.
+
+### Example Gestures → Ball Flights
+
+| Gesture | sidespin | shotType | Ball Flight |
+|---------|----------|----------|-------------|
+| Straight swipe up center lane | ~0 | STRAIGHT | Straight flight |
+| Arc finger rightward during upswing | negative | DRAW / BIG DRAW | Ball curves left |
+| Arc finger leftward during upswing | positive | FADE / BIG FADE | Ball curves right |
+| Straight swipe up left lane | ~0, dir > 0 | PUSH | Angled right, no curve |
+| Straight swipe up right lane | ~0, dir < 0 | PULL | Angled left, no curve |
+| Aggressive arc right | -0.7 to -1.0 | BIG DRAW | ~20-30m lateral deviation over 200m |
 
 ---
 
@@ -114,7 +210,7 @@ vz = horizontalSpeed × cos(totalAngle)     // forward
 Each frame, while `phase === 'flying'`:
 
 ### Forces
-Three forces act on the ball:
+Four forces act on the ball:
 
 1. **Gravity:** constant downward acceleration `−9.81 m/s²`
 2. **Drag:** opposes velocity direction
@@ -128,6 +224,13 @@ Three forces act on the ball:
    a_lift = (F_lift / m) × (horizontalSpeed / (speed + 0.1))
    ```
    The `liftFactor` term means lift is strongest when the ball moves horizontally and drops off as it descends steeply.
+4. **Lateral Magnus (Sidespin):** curves the ball sideways (see §1.5 for full formula)
+   ```
+   effectiveSpin = sidespin × e^(-0.3 × flightTime)
+   sideMagnitude = 0.5 × ρ × v² × 0.10 × A / m
+   sideForce = perpendicular_to_velocity × sideMagnitude × effectiveSpin
+   ```
+   Sidespin is preserved through bounces but set to 0 on rolling transition.
 
 ### Integration (Semi-Implicit Euler)
 ```
@@ -339,7 +442,13 @@ Where `multiplier = 2` for shot 10 (bonus ball), `1` otherwise.
 | `MIN_ROLLING_SPEED` | 0.1 | m/s | ballPhysics.ts:40 |
 | `MAX_ROLLING_TIME` | 15 | s | ballPhysics.ts:41 |
 | `CONTACT_RATIO` | 0.65 | — | ballPhysics.ts:34 (legacy) |
-| `MAX_PULL_DISTANCE` | 60 | px | SwingButton.tsx:26 |
+| `SIDESPIN_COEFFICIENT` | 0.10 | — | ballPhysics.ts |
+| `SIDESPIN_DECAY_RATE` | 0.3 | 1/s | ballPhysics.ts |
+| `AREA_WIDTH` | 132 | px | SwingButton.tsx |
+| `AREA_HEIGHT` | 160 | px | SwingButton.tsx |
+| `DOT_SIZE` | 24 | px | SwingButton.tsx |
+| `MAX_PULL_DISTANCE` | 80 | px | SwingButton.tsx |
+| `LANE_WIDTH` | 44 | px | SwingButton.tsx |
 | `POINTER_CYCLE_MS` | 1200 | ms | PowerArc.tsx:15 |
 | `SWEET_SPOT_START` | 0.70 | — | PowerArc.tsx:18 |
 | `SWEET_SPOT_END` | 0.90 | — | PowerArc.tsx:19 |

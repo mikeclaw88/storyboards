@@ -70,6 +70,8 @@ interface SwingResult {
   accuracy: number;   // 0-100, based on horizontal deviation (100 = perfect)
   score: number;      // Combined score
   direction: number;  // -1 to 1, horizontal direction (-1 = left, 0 = center, 1 = right)
+  sidespin: number;   // -1 to +1, continuous curve amount (negative = draw/right-to-left, positive = fade/left-to-right)
+  shotType: string;   // 'straight' | 'draw' | 'fade' | 'big_draw' | 'big_fade' | 'push' | 'pull'
   distanceToHole: number; // Distance to hole in meters
   shotScore: number; // Score for this shot (100 - distance)
   surface: string;   // Surface type where ball landed
@@ -140,7 +142,7 @@ interface GameState {
 
   // Ball actions
   launchBall: () => void;
-  updateBallPosition: (position: [number, number, number]) => void;
+  updateBallPosition: (position: [number, number, number], distance?: number) => void;
   landBall: (distance: number) => void;
   resetBall: () => void;
 
@@ -281,8 +283,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   launchBall: () => set((state) => ({
     ball: { ...state.ball, isFlying: true },
   })),
-  updateBallPosition: (position) => set((state) => ({
-    ball: { ...state.ball, position },
+  updateBallPosition: (position, distance) => set((state) => ({
+    ball: { ...state.ball, position, ...(distance !== undefined ? { distanceTraveled: distance } : {}) },
   })),
   landBall: (distance) => set((state) => {
     // Calculate distance to hole
@@ -315,7 +317,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       totalScore: newTotalScore,
       practiceHistory: [...state.practiceHistory, shotRecord],
       swingResult: {
-        ...(state.swingResult || { power: 0, accuracy: 0, score: 0, direction: 0 }),
+        ...(state.swingResult || { power: 0, accuracy: 0, score: 0, direction: 0, sidespin: 0, shotType: 'straight' }),
         distanceToHole: distToHole,
         shotScore: shotScore,
         surface,

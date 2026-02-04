@@ -20,13 +20,73 @@ interface GestureData {
   lastTime: number;
 }
 
-const AREA_WIDTH = 60;
-const AREA_HEIGHT = 120;
-const DOT_SIZE = 28;
-const MAX_PULL_DISTANCE = 60; // Max pull distance in pixels for 100% progress
+interface CurveSample {
+  normalizedX: number; // -1 to 1 (left to right)
+  yProgress: number;   // 0 to 1 (bottom of upswing to top)
+}
+
+const AREA_WIDTH = 132;
+const AREA_HEIGHT = 160;
+const DOT_SIZE = 24;
+const MAX_PULL_DISTANCE = 80; // Max pull distance in pixels for 100% progress
+const LANE_WIDTH = 44;
+const HALF_WIDTH = AREA_WIDTH / 2;
 
 /**
- * Swing area with draggable dot and trail
+ * Compute continuous sidespin from curve samples using weighted-deviation integral.
+ * Samples are weighted by a bell curve peaking at yProgress=0.5 (mid-upswing).
+ * Returns clamped value in [-1, 1]. Negative = draw, positive = fade.
+ */
+function computeContinuousSidespin(samples: CurveSample[]): number {
+  if (samples.length < 3) return 0;
+
+  // Compute baseline: straight line from first to last sample
+  const first = samples[0];
+  const last = samples[samples.length - 1];
+
+  let weightedDeviationSum = 0;
+  let totalWeight = 0;
+
+  for (const sample of samples) {
+    // Expected X position along baseline (linear interpolation)
+    const t = sample.yProgress > 0 ? sample.yProgress / (last.yProgress || 1) : 0;
+    const expectedX = first.normalizedX + (last.normalizedX - first.normalizedX) * t;
+
+    // Deviation from baseline
+    const deviation = sample.normalizedX - expectedX;
+
+    // Bell curve weight peaking at yProgress = 0.5
+    const bellWeight = Math.exp(-8 * Math.pow(sample.yProgress - 0.5, 2));
+
+    weightedDeviationSum += deviation * bellWeight;
+    totalWeight += bellWeight;
+  }
+
+  if (totalWeight < 0.01) return 0;
+
+  const weightedAvgDeviation = weightedDeviationSum / totalWeight;
+  return Math.max(-1, Math.min(1, -weightedAvgDeviation * 2.5));
+}
+
+/**
+ * Classify the shot type based on sidespin and direction values.
+ */
+function classifyShotType(sidespin: number, direction: number): string {
+  const absSpin = Math.abs(sidespin);
+  const absDir = Math.abs(direction);
+
+  // Push/Pull: strong direction but minimal curve
+  if (absSpin < 0.15 && absDir >= 0.3) {
+    return direction < 0 ? 'pull' : 'push';
+  }
+
+  if (absSpin < 0.15) return 'straight';
+  if (absSpin < 0.5) return sidespin < 0 ? 'draw' : 'fade';
+  return sidespin < 0 ? 'big_draw' : 'big_fade';
+}
+
+/**
+ * Swing area with draggable dot and trail — 3-lane layout with curve tracking
  */
 export function SwingButton() {
   const swingPhase = useGameStore((s) => s.swingPhase);
@@ -42,8 +102,11 @@ export function SwingButton() {
   const [dotPosition, setDotPosition] = useState({ x: AREA_WIDTH / 2, y: AREA_HEIGHT / 2 });
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [liveSpin, setLiveSpin] = useState(0);
 
   const gestureRef = useRef<GestureData | null>(null);
+  const curveRef = useRef<CurveSample[]>([]);
+  const upswingDetectedRef = useRef(false);
   const areaRef = useRef<HTMLDivElement>(null);
 
   // Reset dot position when swing resets
@@ -51,6 +114,9 @@ export function SwingButton() {
     if (swingPhase === 'ready') {
       setDotPosition({ x: AREA_WIDTH / 2, y: AREA_HEIGHT / 2 });
       setTrail([]);
+      setLiveSpin(0);
+      curveRef.current = [];
+      upswingDetectedRef.current = false;
     }
   }, [swingPhase]);
 
@@ -92,6 +158,10 @@ export function SwingButton() {
       lastTime: Date.now(),
     };
 
+    curveRef.current = [];
+    upswingDetectedRef.current = false;
+    setLiveSpin(0);
+
     setDotPosition(pos);
     setTrail([{ x: pos.x, y: pos.y, speed: 0, time: Date.now() }]);
     setIsDragging(true);
@@ -105,27 +175,54 @@ export function SwingButton() {
     const client = getClientPosition(e);
     const pos = getRelativePosition(client.x, client.y);
     const now = Date.now();
+    const gesture = gestureRef.current;
 
     // Calculate speed
-    const timeDelta = now - gestureRef.current.lastTime;
-    const distanceDelta = Math.abs(client.y - gestureRef.current.lastY);
+    const timeDelta = now - gesture.lastTime;
+    const distanceDelta = Math.abs(client.y - gesture.lastY);
     const speed = timeDelta > 0 ? distanceDelta / timeDelta : 0;
 
     // Track pull distance
-    const pullDistance = client.y - gestureRef.current.startY;
-    if (pullDistance > gestureRef.current.maxPullDistance) {
-      gestureRef.current.maxPullDistance = pullDistance;
-      gestureRef.current.pullEndY = client.y;
-      gestureRef.current.pullEndX = client.x;
-      gestureRef.current.pullEndTime = now;
+    const pullDistance = client.y - gesture.startY;
+    if (pullDistance > gesture.maxPullDistance) {
+      gesture.maxPullDistance = pullDistance;
+      gesture.pullEndY = client.y;
+      gesture.pullEndX = client.x;
+      gesture.pullEndTime = now;
     }
 
     // Update pull progress (0-1) based on max pull distance
-    const progress = Math.min(1, gestureRef.current.maxPullDistance / MAX_PULL_DISTANCE);
+    const progress = Math.min(1, gesture.maxPullDistance / MAX_PULL_DISTANCE);
     setPullProgress(progress);
 
-    gestureRef.current.lastY = client.y;
-    gestureRef.current.lastTime = now;
+    // Detect upswing: finger is moving upward past the pull-end position
+    if (!upswingDetectedRef.current && client.y < gesture.pullEndY - 5) {
+      upswingDetectedRef.current = true;
+    }
+
+    // Record curve samples during upswing
+    if (upswingDetectedRef.current && areaRef.current) {
+      const rect = areaRef.current.getBoundingClientRect();
+      const posX = client.x - rect.left;
+      const centerX = AREA_WIDTH / 2;
+      const normalizedX = (posX - centerX) / HALF_WIDTH; // -1 to 1
+
+      const swingRange = gesture.pullEndY - gesture.startY;
+      const yProgress = swingRange > 0
+        ? Math.max(0, Math.min(1, (gesture.pullEndY - client.y) / swingRange))
+        : 0;
+
+      curveRef.current.push({ normalizedX, yProgress });
+
+      // Compute live sidespin for indicator
+      if (curveRef.current.length >= 3) {
+        const spin = computeContinuousSidespin(curveRef.current);
+        setLiveSpin(spin);
+      }
+    }
+
+    gesture.lastY = client.y;
+    gesture.lastTime = now;
 
     setDotPosition(pos);
     setTrail((prev) => [...prev.slice(-50), { x: pos.x, y: pos.y, speed, time: now }]);
@@ -140,9 +237,9 @@ export function SwingButton() {
 
     const pullDistance = gesture.maxPullDistance;
     const swingDistance = gesture.pullEndY - client.y;
-    const horizontalDeviation = Math.abs(client.x - gesture.startX);
 
     setIsDragging(false);
+    setLiveSpin(0);
 
     // Fail conditions:
     // 1. Didn't pull down enough
@@ -152,29 +249,50 @@ export function SwingButton() {
     const releasedInBottomHalf = pos.y > halfwayY;
     if (pullDistance < 30 || swingDistance < 30 || releasedInBottomHalf) {
       gestureRef.current = null;
+      curveRef.current = [];
       setSwingPhase('ready');
       setPullProgress(0);
       return;
     }
 
     // Power is determined by the PowerArc timing (read directly from store for latest value)
-    // Accuracy is still based on horizontal deviation
     const power = useGameStore.getState().arcPower;
-    const accuracy = Math.max(0, 100 - horizontalDeviation * 2);
+
+    // Accuracy based on path smoothness (jitter), not horizontal deviation
+    const samples = curveRef.current;
+    let jitter = 0;
+    if (samples.length > 2) {
+      let totalDeltaX = 0;
+      for (let i = 1; i < samples.length; i++) {
+        totalDeltaX += Math.abs(samples[i].normalizedX - samples[i - 1].normalizedX);
+      }
+      jitter = totalDeltaX / (samples.length - 1);
+    }
+    const accuracy = Math.max(0, Math.round(100 - jitter * 300));
+
     const score = Math.round((power * 0.5 + accuracy * 0.5));
 
-    // Calculate direction based on horizontal movement during swing
-    // Invert: drag right = ball goes left, drag left = ball goes right
-    const horizontalMove = client.x - gesture.pullEndX;
-    // Normalize to -1 to 1 range (40px movement = full direction), inverted
-    const direction = Math.max(-1, Math.min(1, -horizontalMove / 40));
+    // Compute sidespin from curve accumulator
+    const sidespin = computeContinuousSidespin(samples);
+
+    // Direction: average normalizedX of the last few upswing samples (inverted)
+    const dirSamples = samples.slice(-Math.min(5, samples.length));
+    let avgNormX = 0;
+    if (dirSamples.length > 0) {
+      avgNormX = dirSamples.reduce((sum, s) => sum + s.normalizedX, 0) / dirSamples.length;
+    }
+    const direction = Math.max(-1, Math.min(1, -avgNormX));
+
+    // Classify shot type
+    const shotType = classifyShotType(sidespin, direction);
 
     setSwingPhase('swinging');
-    setSwingResult({ power, accuracy, score, direction });
+    setSwingResult({ power, accuracy, score, direction, sidespin, shotType, distanceToHole: 0, shotScore: 0, surface: '' });
 
     // Ball landing will trigger 'finished' state via landBall() in gameStore
 
     gestureRef.current = null;
+    curveRef.current = [];
   }, [isDragging, getClientPosition, getRelativePosition, setSwingPhase, setSwingResult, setPullProgress]);
 
   // Add global mouse/touch listeners
@@ -230,6 +348,11 @@ export function SwingButton() {
     });
   };
 
+  // Live spin indicator label
+  const liveLabel = Math.abs(liveSpin) > 0.15
+    ? (liveSpin < 0 ? 'DRAW' : 'FADE')
+    : null;
+
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
       {/* Swing Area */}
@@ -252,8 +375,9 @@ export function SwingButton() {
           {renderTrail()}
         </svg>
 
-        {/* Center guide line */}
-        <div className="absolute left-1/2 top-4 bottom-4 w-px bg-white/20 -translate-x-1/2" />
+        {/* Lane dividers (2 lines creating 3 lanes) */}
+        <div className="absolute top-4 bottom-4 w-px bg-white/15 pointer-events-none" style={{ left: LANE_WIDTH }} />
+        <div className="absolute top-4 bottom-4 w-px bg-white/15 pointer-events-none" style={{ left: LANE_WIDTH * 2 }} />
 
         {/* Instructions inside the area */}
         {(swingPhase === 'ready' || swingPhase === 'pulling') && (
@@ -281,6 +405,15 @@ export function SwingButton() {
             top: dotPosition.y - DOT_SIZE / 2,
           }}
         />
+
+        {/* Live spin indicator during upswing */}
+        {isDragging && liveLabel && (
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 pointer-events-none">
+            <span className={`text-xs font-bold drop-shadow-lg ${liveSpin < 0 ? 'text-cyan-400' : 'text-amber-400'}`}>
+              {liveLabel}
+            </span>
+          </div>
+        )}
 
         {/* Finished state text */}
         {swingPhase === 'finished' && !gameComplete && (
