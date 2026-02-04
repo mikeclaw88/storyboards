@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useTerrainStore } from '../stores/terrainStore';
+import { useDebugStore } from '../stores/debugStore';
 import { getHeightmapSize } from '../utils/terrainLoader';
 
 export function CollisionWireframe() {
@@ -8,6 +9,8 @@ export function CollisionWireframe() {
   const terrainPosition = useTerrainStore((s) => s.terrainPosition);
   const heightScale = useTerrainStore((s) => s.heightScale);
   const terrainScale = useTerrainStore((s) => s.terrainScale);
+  const maxTerrainHeight = useDebugStore((s) => s.maxTerrainHeight);
+  const terrainYOffset = useDebugStore((s) => s.terrainYOffset);
 
   const geometry = useMemo(() => {
     if (!terrainData) return null;
@@ -21,14 +24,13 @@ export function CollisionWireframe() {
     // Rotate to XZ plane first
     geo.rotateX(-Math.PI / 2);
 
-    // Apply displacement
+    // Apply displacement, clamped to max terrain height
+    // maxTerrainHeight is in world space; convert to local space for the mesh
+    const localMaxY = (maxTerrainHeight - terrainPosition.y - terrainYOffset) / terrainScale;
     const posAttribute = geo.attributes.position;
     for (let i = 0; i < posAttribute.count; i++) {
-      // Mesh vertices correspond linearly to heightmap data due to plane generation order
-      // (assuming standard PlaneGeometry row-by-row generation)
       const h = heightData[i] || 0;
-      // Set Y (up)
-      posAttribute.setY(i, h * heightScale);
+      posAttribute.setY(i, Math.min(h * heightScale, localMaxY));
     }
     
     // Recalculate normals/bounds
@@ -36,13 +38,13 @@ export function CollisionWireframe() {
     geo.computeBoundingSphere();
 
     return geo;
-  }, [terrainData, heightScale]);
+  }, [terrainData, heightScale, terrainScale, terrainPosition.y, maxTerrainHeight, terrainYOffset]);
 
   if (!geometry) return null;
 
   return (
     <group
-      position={[terrainPosition.x, terrainPosition.y, terrainPosition.z]}
+      position={[terrainPosition.x, terrainPosition.y + terrainYOffset, terrainPosition.z]}
       scale={[terrainScale, terrainScale, terrainScale]}
     >
       <mesh geometry={geometry}>

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { TerrainData } from '../types/terrain';
 import { getHeightAtWorld } from '../utils/terrainLoader';
+import { useDebugStore } from './debugStore';
 
 interface TerrainState {
   /** Loaded terrain data */
@@ -65,6 +66,10 @@ export const useTerrainStore = create<TerrainState>((set, get) => ({
 
     // Apply terrain scale to height and add terrain Y position offset
     // Height is also scaled by the uniform scale
-    return terrainHeight * terrainScale + terrainPosition.y;
+    const worldHeight = terrainHeight * terrainScale + terrainPosition.y;
+
+    // Apply debug Y offset and clamp to max terrain height
+    const { maxTerrainHeight, terrainYOffset } = useDebugStore.getState();
+    return Math.min(worldHeight + terrainYOffset, maxTerrainHeight);
   },
 }));

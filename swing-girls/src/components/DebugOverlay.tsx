@@ -24,7 +24,11 @@ export function DebugOverlay() {
     teeSplatOffset,
     setTeeSplatOffset,
     greenSplatOffset,
-    setGreenSplatOffset
+    setGreenSplatOffset,
+    maxTerrainHeight,
+    setMaxTerrainHeight,
+    terrainYOffset,
+    setTerrainYOffset
   } = useDebugStore();
   
   const groundHeight = getHeight(ballPos[0], ballPos[2]);
@@ -134,6 +138,12 @@ export function DebugOverlay() {
           />
           Show Green Splat
         </label>
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Terrain</strong>
+        {renderSlider('Y Offset', terrainYOffset, setTerrainYOffset, -20, 20)}
+        {renderSlider('Max Y', maxTerrainHeight, setMaxTerrainHeight, 0, 50)}
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
