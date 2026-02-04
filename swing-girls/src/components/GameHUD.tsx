@@ -1,15 +1,24 @@
 import { useGameStore } from '../stores/gameStore';
 
+const SURFACE_COLORS: Record<string, string> = {
+  Rough: 'text-green-800',
+  Fairway: 'text-green-400',
+  Green: 'text-green-500',
+  Sand: 'text-yellow-400',
+  OB: 'text-red-500',
+};
+
 export function GameHUD() {
   const currentShot = useGameStore((s) => s.currentShot);
   const maxShots = useGameStore((s) => s.maxShots);
   const totalScore = useGameStore((s) => s.totalScore);
   const swingResult = useGameStore((s) => s.swingResult);
   const swingPhase = useGameStore((s) => s.swingPhase);
+  const gameComplete = useGameStore((s) => s.gameComplete);
   const nextShot = useGameStore((s) => s.nextShot);
 
-  // Show result after swing finishes
-  const showResult = swingPhase === 'finished' && swingResult;
+  // Show result after swing finishes, but not when game is complete (GameEndModal takes over)
+  const showResult = swingPhase === 'finished' && swingResult && !gameComplete;
 
   return (
     <>
@@ -46,7 +55,7 @@ export function GameHUD() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Surface:</span>
-                <span className="text-yellow-400 font-bold">Fairway</span> {/* Placeholder until logic added */}
+                <span className={`${SURFACE_COLORS[swingResult.surface] || 'text-white'} font-bold`}>{swingResult.surface || 'Unknown'}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-gray-700">
                 <span className="text-gray-400">Points:</span>

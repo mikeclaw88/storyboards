@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { TOPGOLF_CONFIG } from '../config/targets';
 import type { ShotResult } from '../utils/topgolfScoring';
+import { getSurfaceAtPosition } from '../utils/surfaceDetection';
 
 /**
  * Character/Animation configuration types
@@ -71,6 +72,7 @@ interface SwingResult {
   direction: number;  // -1 to 1, horizontal direction (-1 = left, 0 = center, 1 = right)
   distanceToHole: number; // Distance to hole in meters
   shotScore: number; // Score for this shot (100 - distance)
+  surface: string;   // Surface type where ball landed
 }
 
 interface BallState {
@@ -295,8 +297,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     const shotScore = Math.max(0, Math.round(100 - distToHole));
     const newTotalScore = state.totalScore + shotScore;
 
-    // TODO: Determine surface type properly
-    const surface = "Fairway"; // Placeholder
+    // Sample surface map at ball's landing position
+    const surface = getSurfaceAtPosition(ballPos[0], ballPos[2]);
 
     // Record history
     const shotRecord: PracticeShotResult = {
@@ -316,6 +318,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         ...(state.swingResult || { power: 0, accuracy: 0, score: 0, direction: 0 }),
         distanceToHole: distToHole,
         shotScore: shotScore,
+        surface,
       }
     };
   }),
