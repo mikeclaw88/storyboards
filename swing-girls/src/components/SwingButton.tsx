@@ -92,6 +92,7 @@ export function SwingButton() {
   const swingPhase = useGameStore((s) => s.swingPhase);
   const setSwingPhase = useGameStore((s) => s.setSwingPhase);
   const setSwingResult = useGameStore((s) => s.setSwingResult);
+  const swingResult = useGameStore((s) => s.swingResult);
   const pullProgress = useGameStore((s) => s.pullProgress);
   const setPullProgress = useGameStore((s) => s.setPullProgress);
   const resetSwing = useGameStore((s) => s.resetSwing);
@@ -353,6 +354,19 @@ export function SwingButton() {
     ? (liveSpin < 0 ? 'DRAW' : 'FADE')
     : null;
 
+  // Shot type display config
+  const shotTypeConfig: Record<string, { label: string; color: string }> = {
+    straight: { label: 'STRAIGHT', color: 'text-white' },
+    draw: { label: 'DRAW', color: 'text-cyan-400' },
+    fade: { label: 'FADE', color: 'text-amber-400' },
+    big_draw: { label: 'BIG DRAW', color: 'text-cyan-300' },
+    big_fade: { label: 'BIG FADE', color: 'text-amber-300' },
+    push: { label: 'PUSH', color: 'text-orange-400' },
+    pull: { label: 'PULL', color: 'text-orange-400' },
+  };
+
+  const shotCfg = swingResult ? shotTypeConfig[swingResult.shotType] || { label: 'STRAIGHT', color: 'text-white' } : null;
+
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
       {/* Swing Area */}
@@ -390,13 +404,13 @@ export function SwingButton() {
           </div>
         )}
 
-        {/* Draggable dot */}
+        {/* Draggable dot — hidden when outcome overlay is showing */}
         <div
           className={`
-            absolute rounded-full transition-transform duration-75
+            absolute rounded-full transition-all duration-75
             ${isDragging ? 'bg-blue-400 shadow-lg shadow-blue-400/50' : 'bg-white'}
-            ${swingPhase === 'swinging' ? 'bg-green-400' : ''}
-            ${swingPhase === 'finished' ? 'bg-blue-400' : ''}
+            ${swingPhase === 'swinging' ? 'bg-green-400 opacity-0' : ''}
+            ${swingPhase === 'finished' ? 'bg-blue-400 opacity-0' : ''}
           `}
           style={{
             width: DOT_SIZE,
@@ -415,12 +429,40 @@ export function SwingButton() {
           </div>
         )}
 
-        {/* Finished state text */}
-        {swingPhase === 'finished' && !gameComplete && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white text-xs font-medium">
-              {gameMode === 'topgolf' ? 'Next' : 'Retry'}
-            </span>
+        {/* Shot outcome overlay */}
+        {(swingPhase === 'swinging' || swingPhase === 'finished') && swingResult && shotCfg && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2">
+            {/* Shot type label */}
+            <div className={`text-base font-black ${shotCfg.color} drop-shadow-lg leading-none`}>
+              {shotCfg.label}
+            </div>
+
+            {/* Compact stats */}
+            <div className="mt-1.5 flex gap-3 text-center">
+              <div>
+                <div className="text-xs font-bold text-orange-400 tabular-nums">{Math.round(swingResult.power)}</div>
+                <div className="text-[9px] text-gray-400 uppercase leading-none">Pwr</div>
+              </div>
+              <div>
+                <div className="text-xs font-bold text-blue-400 tabular-nums">{Math.round(swingResult.accuracy)}</div>
+                <div className="text-[9px] text-gray-400 uppercase leading-none">Acc</div>
+              </div>
+              {Math.abs(swingResult.sidespin) >= 0.05 && (
+                <div>
+                  <div className={`text-xs font-bold tabular-nums ${swingResult.sidespin < 0 ? 'text-cyan-400' : 'text-amber-400'}`}>
+                    {swingResult.sidespin < 0 ? '◀' : '▶'}{Math.round(Math.abs(swingResult.sidespin) * 100)}
+                  </div>
+                  <div className="text-[9px] text-gray-400 uppercase leading-none">Spin</div>
+                </div>
+              )}
+            </div>
+
+            {/* Tap prompt — only after ball lands */}
+            {swingPhase === 'finished' && !gameComplete && (
+              <div className="mt-2 text-[10px] text-white/50 font-medium">
+                {gameMode === 'topgolf' ? 'tap → next' : 'tap → retry'}
+              </div>
+            )}
           </div>
         )}
       </div>
