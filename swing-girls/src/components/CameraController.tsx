@@ -197,17 +197,9 @@ export function CameraController({
       state.camera.lookAt(waitingTargetPosRef.current);
       controls.target.copy(waitingTargetPosRef.current);
 
-      returnDelayTimerRef.current += delta;
-
-      // After delay, return to play camera
-      if (returnDelayTimerRef.current >= CAMERA_RETURN_DELAY) {
-        targetRef.current.copy(playCameraTarget);
-        controls.target.copy(playCameraTarget);
-        state.camera.position.copy(playCameraPosition);
-        isFollowingRef.current = false;
-        isWaitingToReturnRef.current = false;
-        onFollowStateChange?.(false);
-      }
+      // Disable auto-return (wait for next shot trigger)
+      // returnDelayTimerRef.current += delta;
+      // if (returnDelayTimerRef.current >= CAMERA_RETURN_DELAY) { ... }
     }
   });
 
