@@ -68,7 +68,6 @@ export function GameHUD() {
             >
               {currentShot >= maxShots ? "TAP TO FINISH" : "TAP TO CONTINUE"}
             </button>
-            <div className="text-center text-xs text-gray-400 mt-2">Tap anywhere to continue</div>
           </div>
         )}
       </div>
