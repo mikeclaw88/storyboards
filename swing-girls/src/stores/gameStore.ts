@@ -48,6 +48,30 @@ export type ScreenMode = 'selection' | 'playing';
 export type SwingPhase = 'ready' | 'pulling' | 'swinging' | 'finished';
 export type GameMode = 'practice' | 'topgolf';
 
+export interface SpinBumps {
+  allocations: number[];  // length 8, one per direction index
+  totalUsed: number;      // sum (max 3)
+  maxBumps: number;       // always 3
+}
+
+const INITIAL_SPIN_BUMPS: SpinBumps = {
+  allocations: [0, 0, 0, 0, 0, 0, 0, 0],
+  totalUsed: 0,
+  maxBumps: 3,
+};
+
+// Exported — used by GolfBall for physics rotation
+export const BUMP_DIRECTION_VECTORS: [number, number][] = [
+  [+0.32, +0.95],  // 0: ↖ (1/4 lateral, 3/4 forward)
+  [ 0,    +1   ],  // 1: ↑  (forward)
+  [-0.32, +0.95],  // 2: ↗ (1/4 lateral, 3/4 forward)
+  [+0.32, +0.95],  // 3: ←  (1/4 lateral, 3/4 forward)
+  [-0.32, +0.95],  // 4: →  (1/4 lateral, 3/4 forward)
+  [+0.32, -0.95],  // 5: ↙ (1/4 lateral, 3/4 back)
+  [ 0,    -1   ],  // 6: ↓  (back)
+  [-0.32, -0.95],  // 7: ↘ (1/4 lateral, 3/4 back)
+];
+
 interface TopgolfState {
   currentShot: number;       // 1-10
   totalShots: number;        // 10
@@ -121,6 +145,9 @@ interface GameState {
   // Ball state
   ball: BallState;
 
+  // Spin bumps state
+  spinBumps: SpinBumps;
+
   // Actions
   setScreenMode: (mode: ScreenMode) => void;
   startPlay: () => void;
@@ -139,6 +166,10 @@ interface GameState {
 
   // Aim actions
   setAimAngle: (angle: number) => void;
+
+  // Spin bump actions
+  addSpinBump: (dirIndex: number) => void;
+  resetSpinBumps: () => void;
 
   // Ball actions
   launchBall: () => void;
@@ -198,6 +229,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   arcPower: 0,
   aimAngle: 0,
   ball: { ...INITIAL_BALL_STATE },
+  spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
 
   setScreenMode: (mode) => set({ screenMode: mode }),
   startPlay: () => set((state) => ({
@@ -207,6 +239,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingResult: null,
     pullProgress: 0,
     ball: { ...INITIAL_BALL_STATE },
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     // Reset game state
     currentShot: 1,
     totalScore: 0,
@@ -221,6 +254,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingPhase: 'ready',
     swingResult: null,
     ball: { ...INITIAL_BALL_STATE },
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
     currentShot: 1,
     totalScore: 0,
@@ -261,6 +295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     pullProgress: 0,
     arcPower: 0,
     ball: { ...INITIAL_BALL_STATE },
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
   }),
   
   nextShot: () => set((state) => {
@@ -268,7 +303,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (state.currentShot >= state.maxShots) {
       return { gameComplete: true };
     }
-    
+
     // Otherwise prepare next shot
     return {
       currentShot: state.currentShot + 1,
@@ -276,7 +311,25 @@ export const useGameStore = create<GameState>((set, get) => ({
       swingResult: null,
       pullProgress: 0,
       ball: { ...INITIAL_BALL_STATE },
+      spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     };
+  }),
+
+  // Spin bump actions
+  addSpinBump: (dirIndex) => set((state) => {
+    if (dirIndex < 0 || dirIndex >= 8 || state.spinBumps.totalUsed >= state.spinBumps.maxBumps) return state;
+    const newAllocations = [...state.spinBumps.allocations];
+    newAllocations[dirIndex] += 1;
+    return {
+      spinBumps: {
+        ...state.spinBumps,
+        allocations: newAllocations,
+        totalUsed: state.spinBumps.totalUsed + 1,
+      },
+    };
+  }),
+  resetSpinBumps: () => set({
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
   }),
 
   // Ball actions
@@ -337,6 +390,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingResult: null,
     pullProgress: 0,
     ball: { ...INITIAL_BALL_STATE },
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
   }),
 
@@ -370,6 +424,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       swingResult: null,
       pullProgress: 0,
       ball: { ...INITIAL_BALL_STATE },
+      spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     };
   }),
 
@@ -381,6 +436,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingResult: null,
     pullProgress: 0,
     ball: { ...INITIAL_BALL_STATE },
+    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
   }),
 }));

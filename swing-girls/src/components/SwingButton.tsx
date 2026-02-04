@@ -100,6 +100,9 @@ export function SwingButton() {
   const gameComplete = useGameStore((s) => s.topgolf.gameComplete);
   const nextTopgolfShot = useGameStore((s) => s.nextTopgolfShot);
 
+  const spinBumps = useGameStore((s) => s.spinBumps);
+  const addSpinBump = useGameStore((s) => s.addSpinBump);
+
   const [dotPosition, setDotPosition] = useState({ x: AREA_WIDTH / 2, y: AREA_HEIGHT / 2 });
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -429,8 +432,75 @@ export function SwingButton() {
           </div>
         )}
 
-        {/* Shot outcome overlay */}
-        {(swingPhase === 'swinging' || swingPhase === 'finished') && swingResult && shotCfg && (
+        {/* 3x3 Spin Bump Grid — shown during flight (swinging phase) */}
+        {swingPhase === 'swinging' && (
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div
+              className="grid grid-cols-3"
+              style={{ width: AREA_WIDTH, height: AREA_WIDTH }}
+            >
+              {Array.from({ length: 9 }).map((_, gridIndex) => {
+                const isCenter = gridIndex === 4;
+                const dirIndex = gridIndex < 4 ? gridIndex : gridIndex - 1;
+                const arrows = ['↖', '↑', '↗', '←', '', '→', '↙', '↓', '↘'];
+                const remaining = spinBumps.maxBumps - spinBumps.totalUsed;
+
+                if (isCenter) {
+                  return (
+                    <div
+                      key={gridIndex}
+                      className="flex flex-col items-center justify-center"
+                      style={{ width: 44, height: 44 }}
+                    >
+                      <div className="w-3 h-3 rounded-full bg-white" />
+                      <div className={`text-[10px] font-bold mt-0.5 tabular-nums ${remaining > 0 ? 'text-white' : 'text-white/40'}`}>
+                        {remaining}
+                      </div>
+                    </div>
+                  );
+                }
+
+                const count = spinBumps.allocations[dirIndex];
+                const hasAllocation = count > 0;
+                const canAllocate = remaining > 0;
+
+                return (
+                  <button
+                    key={gridIndex}
+                    className={`
+                      flex items-center justify-center relative
+                      text-sm font-bold transition-colors duration-100 rounded
+                      ${hasAllocation ? 'bg-blue-500/40 text-blue-300' : canAllocate ? 'text-white/60 hover:bg-white/10 active:bg-white/20' : 'text-white/25'}
+                    `}
+                    style={{ width: 44, height: 44 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addSpinBump(dirIndex);
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      addSpinBump(dirIndex);
+                    }}
+                  >
+                    {arrows[gridIndex]}
+                    {hasAllocation && (
+                      <span className="absolute top-0.5 right-0.5 text-[8px] text-blue-300 font-bold">
+                        x{count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Shot outcome overlay — shown after ball lands (finished phase) */}
+        {swingPhase === 'finished' && swingResult && shotCfg && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-2">
             {/* Shot type label */}
             <div className={`text-base font-black ${shotCfg.color} drop-shadow-lg leading-none`}>
@@ -457,8 +527,8 @@ export function SwingButton() {
               )}
             </div>
 
-            {/* Tap prompt — only after ball lands */}
-            {swingPhase === 'finished' && !gameComplete && (
+            {/* Tap prompt */}
+            {!gameComplete && (
               <div className="mt-2 text-[10px] text-white/50 font-medium">
                 {gameMode === 'topgolf' ? 'tap → next' : 'tap → retry'}
               </div>
