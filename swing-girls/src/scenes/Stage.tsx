@@ -10,6 +10,7 @@ import { Terrain } from '../components/Terrain';
 import { Splat } from '../components/Splat';
 import { CollisionWireframe } from '../components/CollisionWireframe';
 import { GolfHole } from '../components/GolfHole';
+import { SurfaceEditor } from '../components/SurfaceEditor';
 import { useMotionConfig } from '../hooks/useMotionConfig';
 import { useSceneConfig } from '../hooks/useSceneConfig';
 import { SceneProps } from '../components/SceneProp';
@@ -38,7 +39,7 @@ export function Stage() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   
   // Debug state
-  const { showWireframe, freeRoamCamera, showTeeSplat, showGreenSplat, teeSplatOffset, greenSplatOffset } = useDebugStore();
+  const { showWireframe, freeRoamCamera, showTeeSplat, showGreenSplat, teeSplatOffset, greenSplatOffset, surfaceEditorOpen } = useDebugStore();
 
   const [isAltPressed, setIsAltPressed] = useState(false);
   const [isCtrlPressed, setIsCtrlPressed] = useState(false);
@@ -87,34 +88,44 @@ export function Stage() {
   }, []);
 
   // Camera Constraints Logic
-  const minPolarAngle = freeRoamCamera 
+  const minPolarAngle = surfaceEditorOpen ? 0 : (freeRoamCamera 
     ? 0.1 
     : (screenMode === 'playing'
       ? (isCameraFollowing ? 0.1 : (isAltPressed ? PLAY_MODE_MIN_POLAR_ANGLE : lockedPolarAngle))
-      : 0.2);
+      : 0.2));
       
-  const maxPolarAngle = freeRoamCamera
+  const maxPolarAngle = surfaceEditorOpen ? 0 : (freeRoamCamera
     ? Math.PI - 0.1
     : (screenMode === 'playing'
       ? (isCameraFollowing ? Math.PI - 0.1 : (isAltPressed ? PLAY_MODE_MAX_POLAR_ANGLE : lockedPolarAngle))
-      : Math.PI / 2.1);
+      : Math.PI / 2.1));
 
-  const minAzimuthAngle = !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+  // Force Top Down View for Editor
+  useEffect(() => {
+    if (surfaceEditorOpen && controlsRef.current) {
+      // Look down
+      controlsRef.current.object.position.set(0, 200, 150); // High up, centered Z
+      controlsRef.current.target.set(0, 0, 150);
+      controlsRef.current.update();
+    }
+  }, [surfaceEditorOpen]);
+
+  const minAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle - PLAY_MODE_AZIMUTH_RANGE
     : -Infinity;
     
-  const maxAzimuthAngle = !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+  const maxAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle + PLAY_MODE_AZIMUTH_RANGE
     : Infinity;
 
-  const minDistance = screenMode === 'playing' && isVideoCharacter(selectedCharacter) ? 2 : 3;
-  const maxDistance = freeRoamCamera ? 500 : (screenMode === 'playing' ? 10 : 50);
+  const minDistance = surfaceEditorOpen ? 50 : (screenMode === 'playing' && isVideoCharacter(selectedCharacter) ? 2 : 3);
+  const maxDistance = surfaceEditorOpen ? 500 : (freeRoamCamera ? 500 : (screenMode === 'playing' ? 10 : 50));
 
   const enableCameraInSelection = screenMode === 'selection' && isCtrlPressed;
   
-  const enableRotate = freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
-  const enableZoom = freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
-  const enablePan = freeRoamCamera || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed));
+  const enableRotate = !surfaceEditorOpen && (freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)));
+  const enableZoom = freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
+  const enablePan = freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed));
 
   return (
     <>
@@ -223,6 +234,7 @@ export function Stage() {
       <AimController controlsRef={controlsRef} />
       <TargetZones />
       <SceneProps props={props} />
+      <SurfaceEditor />
     </>
   );
 }

@@ -13,6 +13,7 @@ import { useGameStore } from './stores/gameStore';
 import { DebugOverlay } from './components/DebugOverlay';
 import { LoadScreen } from './components/LoadScreen';
 import { GameHUD } from './components/GameHUD';
+import { GameEndModal } from './components/GameEndModal';
 
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
@@ -22,6 +23,7 @@ export default function App() {
     <div className="w-full h-full relative">
       <LoadScreen />
       <DebugOverlay />
+      <GameEndModal />
       <Canvas
         shadows={{ type: PCFSoftShadowMap }}
         camera={{

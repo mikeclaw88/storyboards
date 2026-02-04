@@ -5,6 +5,7 @@ interface DebugState {
   freeRoamCamera: boolean;
   showTeeSplat: boolean;
   showGreenSplat: boolean;
+  surfaceEditorOpen: boolean;
   teeSplatOffset: { x: number; y: number; z: number };
   greenSplatOffset: { x: number; y: number; z: number };
   maxTerrainHeight: number;
@@ -17,6 +18,7 @@ interface DebugState {
   toggleShowTeeSplat: () => void;
   setShowGreenSplat: (show: boolean) => void;
   toggleShowGreenSplat: () => void;
+  setSurfaceEditorOpen: (open: boolean) => void;
   setTeeSplatOffset: (axis: 'x' | 'y' | 'z', value: number) => void;
   setGreenSplatOffset: (axis: 'x' | 'y' | 'z', value: number) => void;
   setMaxTerrainHeight: (value: number) => void;
@@ -28,6 +30,7 @@ export const useDebugStore = create<DebugState>((set) => ({
   freeRoamCamera: false,
   showTeeSplat: true,
   showGreenSplat: true,
+  surfaceEditorOpen: false,
   teeSplatOffset: { x: 0, y: 1, z: 0 },
   greenSplatOffset: { x: 0, y: 1, z: 147 },
   maxTerrainHeight: 0,
@@ -41,6 +44,7 @@ export const useDebugStore = create<DebugState>((set) => ({
   toggleShowTeeSplat: () => set((state) => ({ showTeeSplat: !state.showTeeSplat })),
   setShowGreenSplat: (show) => set({ showGreenSplat: show }),
   toggleShowGreenSplat: () => set((state) => ({ showGreenSplat: !state.showGreenSplat })),
+  setSurfaceEditorOpen: (open) => set({ surfaceEditorOpen: open }),
   setTeeSplatOffset: (axis, value) => set((state) => ({
     teeSplatOffset: { ...state.teeSplatOffset, [axis]: value }
   })),

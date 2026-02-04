@@ -56,6 +56,14 @@ interface TopgolfState {
   gameComplete: boolean;
 }
 
+export interface PracticeShotResult {
+  shotNumber: number;
+  distance: number;
+  distanceToHole: number;
+  score: number;
+  surface: string; // 'Tee', 'Fairway', 'Rough', 'Green', 'Sand', 'OB'
+}
+
 interface SwingResult {
   power: number;      // 0-100, based on speed
   accuracy: number;   // 0-100, based on horizontal deviation (100 = perfect)
@@ -83,12 +91,15 @@ interface GameState {
   // Topgolf state
   topgolf: TopgolfState;
 
-  // Hole Configuration
+  // Practice Mode State
   holePosition: [number, number, number];
-  setHolePosition: (pos: [number, number, number]) => void;
-  shotsRemaining: number;
+  currentShot: number;
   maxShots: number;
   totalScore: number;
+  practiceHistory: PracticeShotResult[];
+  gameComplete: boolean;
+
+  setHolePosition: (pos: [number, number, number]) => void;
 
   // Character selection
   characterIndex: number;
@@ -120,6 +131,7 @@ interface GameState {
   setPullProgress: (progress: number) => void;
   setArcPower: (power: number) => void;
   resetSwing: () => void;
+  nextShot: () => void; // Move to next shot or finish game
 
   // Aim actions
   setAimAngle: (angle: number) => void;
@@ -166,9 +178,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   // Hole Defaults
   holePosition: DEFAULT_HOLE_POS,
-  shotsRemaining: MAX_SHOTS,
+  currentShot: 1,
   maxShots: MAX_SHOTS,
   totalScore: 0,
+  practiceHistory: [],
+  gameComplete: false,
 
   setHolePosition: (pos) => set({ holePosition: pos }),
 
@@ -190,8 +204,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     pullProgress: 0,
     ball: { ...INITIAL_BALL_STATE },
     // Reset game state
-    shotsRemaining: MAX_SHOTS,
+    currentShot: 1,
     totalScore: 0,
+    practiceHistory: [],
+    gameComplete: false,
     topgolf: state.gameMode === 'practice' ? { ...INITIAL_TOPGOLF_STATE } : state.topgolf,
   })),
   stopPlay: () => set({
@@ -202,6 +218,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingResult: null,
     ball: { ...INITIAL_BALL_STATE },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
+    currentShot: 1,
+    totalScore: 0,
+    practiceHistory: [],
+    gameComplete: false,
   }),
   pauseGame: () => set({ isPaused: true }),
   resumeGame: () => set({ isPaused: false }),
@@ -238,11 +258,26 @@ export const useGameStore = create<GameState>((set, get) => ({
     arcPower: 0,
     ball: { ...INITIAL_BALL_STATE },
   }),
+  
+  nextShot: () => set((state) => {
+    // If we finished the last shot
+    if (state.currentShot >= state.maxShots) {
+      return { gameComplete: true };
+    }
+    
+    // Otherwise prepare next shot
+    return {
+      currentShot: state.currentShot + 1,
+      swingPhase: 'ready',
+      swingResult: null,
+      pullProgress: 0,
+      ball: { ...INITIAL_BALL_STATE },
+    };
+  }),
 
   // Ball actions
   launchBall: () => set((state) => ({
     ball: { ...state.ball, isFlying: true },
-    shotsRemaining: Math.max(0, state.shotsRemaining - 1),
   })),
   updateBallPosition: (position) => set((state) => ({
     ball: { ...state.ball, position },
@@ -260,17 +295,25 @@ export const useGameStore = create<GameState>((set, get) => ({
     const shotScore = Math.max(0, Math.round(100 - distToHole));
     const newTotalScore = state.totalScore + shotScore;
 
-    // Update swing result with score info if it exists, or create placeholder
-    const currentResult = state.swingResult || { 
-      power: 0, accuracy: 0, score: 0, direction: 0, distanceToHole: 0, shotScore: 0 
+    // TODO: Determine surface type properly
+    const surface = "Fairway"; // Placeholder
+
+    // Record history
+    const shotRecord: PracticeShotResult = {
+      shotNumber: state.currentShot,
+      distance: Math.round(distance),
+      distanceToHole: Math.round(distToHole),
+      score: shotScore,
+      surface
     };
 
     return {
       ball: { ...state.ball, isFlying: false, distanceTraveled: distance },
       swingPhase: 'finished',
       totalScore: newTotalScore,
+      practiceHistory: [...state.practiceHistory, shotRecord],
       swingResult: {
-        ...currentResult,
+        ...(state.swingResult || { power: 0, accuracy: 0, score: 0, direction: 0 }),
         distanceToHole: distToHole,
         shotScore: shotScore,
       }

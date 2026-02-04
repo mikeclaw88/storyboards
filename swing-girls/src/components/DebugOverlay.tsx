@@ -17,6 +17,8 @@ export function DebugOverlay() {
     toggleWireframe, 
     freeRoamCamera,
     toggleFreeRoamCamera,
+    surfaceEditorOpen,
+    setSurfaceEditorOpen,
     showTeeSplat,
     toggleShowTeeSplat,
     showGreenSplat,
@@ -107,7 +109,7 @@ export function DebugOverlay() {
           />
           Show Collision Mesh
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '5px' }}>
           <input 
             type="checkbox" 
             checked={freeRoamCamera} 
@@ -115,6 +117,15 @@ export function DebugOverlay() {
             style={{ marginRight: '5px' }}
           />
           Freeroam Camera
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+          <input 
+            type="checkbox" 
+            checked={surfaceEditorOpen} 
+            onChange={(e) => setSurfaceEditorOpen(e.target.checked)}
+            style={{ marginRight: '5px' }}
+          />
+          Open Surface Editor (Paint)
         </label>
       </div>
 
