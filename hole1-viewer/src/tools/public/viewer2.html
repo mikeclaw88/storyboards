@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Forest Viewer - Debug Mode</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; color: #eee; font-family: monospace; }
+        #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; border: 1px solid #444; pointer-events: auto; }
+        h1 { margin: 0 0 10px 0; font-size: 16px; color: #4CAF50; }
+        .stats { margin-top: 10px; font-size: 12px; color: #aaa; white-space: pre-wrap; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui">
+        <h1>🌲 Forest Viewer (Debug)</h1>
+        <p>1. Open Console (F12) to see logs.</p>
+        <p>2. Upload 'forest_data.json' below.</p>
+        <input type="file" id="fileInput" accept=".json">
+        <div class="stats" id="stats">Status: Waiting for file...</div>
+    </div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- 1. SETUP SCENE ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x202020);
+
+    // Helpers to see if 3D is working at all
+    const axesHelper = new THREE.AxesHelper(50);
+    scene.add(axesHelper);
+    const gridHelper = new THREE.GridHelper(1000, 20);
+    scene.add(gridHelper);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    camera.position.set(0, 200, 200); // High up, looking down
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    
+    const forestGroup = new THREE.Group();
+    scene.add(forestGroup);
+
+    // --- 2. LOAD LOGIC ---
+    const fileInput = document.getElementById('fileInput');
+    const statDiv = document.getElementById('stats');
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            console.error("No file selected.");
+            return;
+        }
+
+        console.log("File selected:", file.name);
+        statDiv.textContent = "Loading " + file.name + "...";
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                console.log("File read. Parsing JSON...");
+                const data = JSON.parse(event.target.result);
+                console.log("JSON Parsed. Data:", data);
+                
+                if (!data.trees || !data.lipVertices) {
+                    throw new Error("Invalid JSON structure. Missing 'trees' or 'lipVertices'.");
+                }
+
+                buildScene(data);
+                statDiv.textContent = `Success!\nTrees: ${data.trees.length}\nLip Verts: ${data.lipVertices.length}`;
+
+            } catch (err) {
+                console.error("Error parsing JSON:", err);
+                statDiv.textContent = "Error: " + err.message;
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    // --- 3. BUILD SCENE ---
+    function buildScene(data) {
+        forestGroup.clear();
+        console.log("Building Scene...");
+
+        // Center the view
+        const cx = -data.width / 2;
+        const cz = -data.height / 2;
+
+        // A. Draw Trees (Simple Cubes)
+        const boxGeo = new THREE.BoxGeometry(5, 15, 5);
+        const boxMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+        
+        // Use a simple mesh for every tree (easiest way to debug)
+        // Note: For 10,000+ trees, we'd use InstancedMesh, but for <2000 this is fine and safer.
+        data.trees.forEach(t => {
+            const mesh = new THREE.Mesh(boxGeo, boxMat);
+            mesh.position.set(t.x + cx, 7.5, t.y + cz);
+            forestGroup.add(mesh);
+        });
+
+        // B. Draw Lip Vertices (Red Dots)
+        const dotGeo = new THREE.BufferGeometry();
+        const positions = [];
+        data.lipVertices.forEach(v => {
+            positions.push(v.x + cx, 1.0, v.y + cz);
+        });
+        dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        const dotMat = new THREE.PointsMaterial({ color: 0xff0000, size: 3 });
+        const dots = new THREE.Points(dotGeo, dotMat);
+        forestGroup.add(dots);
+
+        console.log("Build Complete. Objects added to scene.");
+    }
+
+    // --- 4. RENDER LOOP ---
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>

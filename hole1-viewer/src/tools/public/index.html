@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Forest Baker Tool</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: #eee; padding: 20px; }
+        .controls { margin-bottom: 20px; background: #333; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center;}
+        canvas { border: 2px solid #555; background: #000; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .btn { padding: 10px 20px; font-size: 16px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; }
+        .btn-green { background: #4CAF50; color: white; }
+        .btn-green:hover { background: #45a049; }
+        .btn-blue { background: #2196F3; color: white; }
+        .btn-blue:hover { background: #1e88e5; }
+        .btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+        #status { font-family: monospace; color: #aaa; margin-left: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Forest Baker Tool</h1>
+    
+    <div class="controls">
+        <button class="btn btn-green" onclick="runBake()">1. Run Bake</button>
+        <button class="btn btn-blue" onclick="saveToDisk()" id="saveBtn" disabled>2. Save JSON + TXT</button>
+        <span id="status">Loading image...</span>
+    </div>
+
+    <canvas id="displayCanvas"></canvas>
+
+<script>
+    // --- CONFIGURATION ---
+    const TARGET_COLOR = { r: 0, g: 128, b: 0 }; 
+    const COLOR_TOLERANCE = 100;
+    const TREE_SPACING = 15; 
+    const LIP_SIMPLIFICATION = 4; 
+
+    // --- GLOBALS ---
+    const canvas = document.getElementById('displayCanvas');
+    const ctx = canvas.getContext('2d');
+    const statusLabel = document.getElementById('status');
+    const saveBtn = document.getElementById('saveBtn');
+    
+    let sourceImage = new Image();
+    let bakedData = null; 
+
+    // Auto-load the image from the server
+    sourceImage.crossOrigin = "Anonymous";
+    sourceImage.src = 'hole1_surface.png'; 
+    
+    sourceImage.onload = () => {
+        statusLabel.innerText = "Image Loaded. Ready to Bake.";
+        canvas.width = sourceImage.width;
+        canvas.height = sourceImage.height;
+        ctx.drawImage(sourceImage, 0, 0);
+    };
+
+    sourceImage.onerror = () => {
+        statusLabel.innerText = "Error: Could not find 'hole1_surface.png' in /public folder.";
+    };
+
+    // --- BAKING LOGIC ---
+    function runBake() {
+        statusLabel.innerText = "Processing...";
+        
+        // Allow UI to update before freezing for calculation
+        setTimeout(() => {
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            ctx.drawImage(sourceImage, 0, 0);
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const pixels = imgData.data;
+
+            // 1. Build Grid
+            const grid = new Uint8Array(width * height);
+            for (let i = 0; i < pixels.length; i += 4) {
+                const dist = Math.sqrt(
+                    (pixels[i] - TARGET_COLOR.r)**2 + 
+                    (pixels[i+1] - TARGET_COLOR.g)**2 + 
+                    (pixels[i+2] - TARGET_COLOR.b)**2
+                );
+                if (dist < COLOR_TOLERANCE) grid[i / 4] = 1;
+            }
+
+            // 2. Generate Lip Verts
+            const lipVertices = [];
+            for (let y = 0; y < height; y += LIP_SIMPLIFICATION) {
+                for (let x = 0; x < width; x += LIP_SIMPLIFICATION) {
+                    const idx = y * width + x;
+                    if (grid[idx] === 1 && isEdge(x, y, width, height, grid)) {
+                        lipVertices.push({x, y});
+                    }
+                }
+            }
+
+            // 3. Generate Trees
+            const trees = [];
+            const attempts = (width * height) / 20;
+            
+            for (let i = 0; i < attempts; i++) {
+                const rx = Math.floor(Math.random() * width);
+                const ry = Math.floor(Math.random() * height);
+                const idx = ry * width + rx;
+
+                if (grid[idx] === 1) {
+                    let tooClose = false;
+                    for (let t of trees) {
+                        const dx = t.x - rx;
+                        const dy = t.y - ry;
+                        if ((dx*dx + dy*dy) < (TREE_SPACING * TREE_SPACING)) {
+                            tooClose = true; 
+                            break;
+                        }
+                    }
+                    if (!tooClose) trees.push({x: rx, y: ry});
+                }
+            }
+
+            // 4. Finish
+            bakedData = { 
+                width: width,
+                height: height,
+                timestamp: Date.now(),
+                lipVertices: lipVertices,
+                trees: trees 
+            };
+
+            drawResults(lipVertices, trees);
+            statusLabel.innerText = `Done! Trees: ${trees.length} | Lip Verts: ${lipVertices.length}`;
+            
+            // ENABLE THE BLUE BUTTON
+            saveBtn.disabled = false;
+
+        }, 50);
+    }
+
+    // --- SERVER COMMUNICATION ---
+    function saveToDisk() {
+        if(!bakedData) return;
+        statusLabel.innerText = "Saving to server...";
+
+        fetch('/save-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bakedData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            statusLabel.innerText = "Saved! Check '/output' folder.";
+            alert("Files saved successfully to the /output folder!");
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            statusLabel.innerText = "Error saving data.";
+        });
+    }
+
+    // --- HELPERS ---
+    function isEdge(x, y, w, h, grid) {
+        if (x <= 0 || x >= w-1 || y <= 0 || y >= h-1) return true;
+        const up = (y-1) * w + x;
+        const down = (y+1) * w + x;
+        const left = y * w + (x-1);
+        const right = y * w + (x+1);
+        return (grid[up] === 0 || grid[down] === 0 || grid[left] === 0 || grid[right] === 0);
+    }
+
+    function drawResults(lipVerts, trees) {
+        ctx.fillStyle = "rgba(0,0,0,0.85)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Lip
+        ctx.fillStyle = "#2E8B57";
+        lipVerts.forEach(v => {
+            ctx.beginPath(); ctx.arc(v.x, v.y, 2, 0, Math.PI*2); ctx.fill();
+        });
+
+        // Draw Trees
+        trees.forEach(t => {
+            ctx.fillStyle = "#32CD32";
+            ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "black"; ctx.stroke();
+        });
+    }
+</script>
+</body>
+</html>

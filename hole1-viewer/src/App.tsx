@@ -1,7 +1,8 @@
-import { useState, useRef, useMemo, useCallback, Fragment } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, Fragment } from 'react';
 import { Canvas, useFrame, useLoader, useThree, createPortal } from '@react-three/fiber';
 import { OrbitControls, useFBO } from '@react-three/drei';
 import * as THREE from 'three';
+import { createSkymap } from './lib/skymap';
 import './App.css';
 
 // === SHADER FRAGMENTS ===
@@ -349,6 +350,9 @@ const compositeFragmentShader = `
   uniform sampler2D uLayer4;
   uniform sampler2D uLayer5;
 
+  uniform sampler2D uSkyLayer;
+  uniform float uSkyWeight;
+
   // blend: 0 = OFF, 1 = ADD, 2 = MULT
   uniform int uBlend0;
   uniform int uBlend1;
@@ -366,24 +370,31 @@ const compositeFragmentShader = `
 
   varying vec2 vUv;
 
-  void applyLayer(inout vec3 result, sampler2D tex, int blend, float weight) {
+  void applyLayer(inout vec3 result, inout float alpha, sampler2D tex, int blend, float weight) {
     if (blend == 0) return;
-    vec3 color = texture2D(tex, vUv).rgb;
+    vec4 s = texture2D(tex, vUv);
+    vec3 color = s.rgb;
     if (blend == 1) {
       result += color * weight;
     } else if (blend == 2) {
       result *= mix(vec3(1.0), color, weight);
     }
+    alpha = max(alpha, s.a);
   }
 
   void main() {
-    vec3 result = vec3(0.0);
-    applyLayer(result, uLayer0, uBlend0, uWeight0);
-    applyLayer(result, uLayer1, uBlend1, uWeight1);
-    applyLayer(result, uLayer2, uBlend2, uWeight2);
-    applyLayer(result, uLayer3, uBlend3, uWeight3);
-    applyLayer(result, uLayer4, uBlend4, uWeight4);
-    applyLayer(result, uLayer5, uBlend5, uWeight5);
+    vec3 sky = texture2D(uSkyLayer, vUv).rgb * uSkyWeight;
+
+    vec3 terrain = vec3(0.0);
+    float terrainAlpha = 0.0;
+    applyLayer(terrain, terrainAlpha, uLayer0, uBlend0, uWeight0);
+    applyLayer(terrain, terrainAlpha, uLayer1, uBlend1, uWeight1);
+    applyLayer(terrain, terrainAlpha, uLayer2, uBlend2, uWeight2);
+    applyLayer(terrain, terrainAlpha, uLayer3, uBlend3, uWeight3);
+    applyLayer(terrain, terrainAlpha, uLayer4, uBlend4, uWeight4);
+    applyLayer(terrain, terrainAlpha, uLayer5, uBlend5, uWeight5);
+
+    vec3 result = mix(sky, terrain, terrainAlpha);
     gl_FragColor = vec4(result, 1.0);
   }
 `;
@@ -400,12 +411,20 @@ function CompositeRenderer({
   detailMap,
   heightScale,
   pointRadius,
+  skyEnabled,
+  skyWeight,
+  skyYOffset,
+  skyScale,
 }: {
   layers: Record<string, LayerConfig>;
   heightMap: THREE.Texture;
   detailMap: THREE.Texture;
   heightScale: number;
   pointRadius: number;
+  skyEnabled: boolean;
+  skyWeight: number;
+  skyYOffset: number;
+  skyScale: number;
 }) {
   const { gl, camera } = useThree();
 
@@ -420,6 +439,35 @@ function CompositeRenderer({
   const fbo4 = useFBO({ depth: true });
   const fbo5 = useFBO({ depth: true });
   const fbos = useMemo(() => [fbo0, fbo1, fbo2, fbo3, fbo4, fbo5], [fbo0, fbo1, fbo2, fbo3, fbo4, fbo5]);
+
+  // Sky FBO + scene
+  const fboSky = useFBO();
+  const skymapScene = useMemo(() => new THREE.Scene(), []);
+
+  // Load cubemap and create skymap mesh
+  useEffect(() => {
+    const loader = new THREE.CubeTextureLoader();
+    loader.setPath('/assets/mars/');
+    loader.load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg'], (cubeTexture) => {
+      const mesh = createSkymap(cubeTexture, 500);
+      skymapScene.add(mesh);
+    });
+    return () => {
+      while (skymapScene.children.length > 0) {
+        skymapScene.remove(skymapScene.children[0]);
+      }
+    };
+  }, [skymapScene]);
+
+  // Refs for sky props
+  const skyEnabledRef = useRef(skyEnabled);
+  skyEnabledRef.current = skyEnabled;
+  const skyWeightRef = useRef(skyWeight);
+  skyWeightRef.current = skyWeight;
+  const skyYOffsetRef = useRef(skyYOffset);
+  skyYOffsetRef.current = skyYOffset;
+  const skyScaleRef = useRef(skyScale);
+  skyScaleRef.current = skyScale;
 
   // Orthographic camera for the compositing quad
   const orthoCamera = useMemo(() => {
@@ -440,6 +488,8 @@ function CompositeRenderer({
         uLayer3: { value: null },
         uLayer4: { value: null },
         uLayer5: { value: null },
+        uSkyLayer: { value: null },
+        uSkyWeight: { value: 0 },
         uBlend0: { value: 0 },
         uBlend1: { value: 0 },
         uBlend2: { value: 0 },
@@ -476,18 +526,32 @@ function CompositeRenderer({
   useFrame(() => {
     const currentLayers = layersRef.current;
 
-    // Render each active layer to its FBO
+    // Render sky to its FBO
+    gl.setRenderTarget(fboSky);
+    gl.setClearColor(0x000000, 1);
+    gl.clear();
+    if (skyEnabledRef.current && skymapScene.children.length > 0) {
+      const s = skyScaleRef.current / 500;
+      skymapScene.children[0].position.y = skyYOffsetRef.current;
+      skymapScene.children[0].scale.set(s, s, s);
+      gl.render(skymapScene, camera);
+    }
+
+    // Render each active layer to its FBO (alpha=0 clear so sky shows through gaps)
     MODE_NAMES.forEach((name, i) => {
       const cfg = currentLayers[name];
       if (cfg.blend !== 'OFF') {
         gl.setRenderTarget(fbos[i]);
-        gl.setClearColor(0x000000, 1);
+        gl.setClearColor(0x000000, 0);
         gl.clear();
         gl.render(scenes[i], camera);
       }
     });
 
     // Update compositing uniforms
+    compositeMaterial.uniforms.uSkyLayer.value = fboSky.texture;
+    compositeMaterial.uniforms.uSkyWeight.value = skyEnabledRef.current ? skyWeightRef.current : 0;
+
     MODE_NAMES.forEach((name, i) => {
       const cfg = currentLayers[name];
       compositeMaterial.uniforms[`uLayer${i}` as keyof typeof compositeMaterial.uniforms].value = fbos[i].texture;
@@ -526,6 +590,10 @@ function App() {
   const [layers, setLayers] = useState<Record<string, LayerConfig>>(defaultLayers);
   const [heightScale, setHeightScale] = useState(50);
   const [pointRadius, setPointRadius] = useState(300);
+  const [skyEnabled, setSkyEnabled] = useState(true);
+  const [skyWeight, setSkyWeight] = useState(1.0);
+  const [skyYOffset, setSkyYOffset] = useState(0);
+  const [skyScale, setSkyScale] = useState(500);
 
   const [heightMap, detailMap] = useLoader(THREE.TextureLoader, [
     '/assets/hole1_height.png',
@@ -560,6 +628,10 @@ function App() {
             detailMap={detailMap}
             heightScale={heightScale}
             pointRadius={pointRadius}
+            skyEnabled={skyEnabled}
+            skyWeight={skyWeight}
+            skyYOffset={skyYOffset}
+            skyScale={skyScale}
           />
         </Canvas>
       </div>
@@ -581,6 +653,97 @@ function App() {
         pointerEvents: 'auto',
       }}>
         <h2 style={{ fontWeight: 'bold', marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 8, textAlign: 'center' }}>LAYER COMPOSITOR</h2>
+
+            <div style={{
+              marginBottom: 16,
+              padding: '8px 10px',
+              borderRadius: 6,
+              background: skyEnabled ? 'rgba(255,255,255,0.05)' : 'transparent',
+              border: skyEnabled ? '1px solid rgba(234,179,8,0.4)' : '1px solid rgba(255,255,255,0.1)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: skyEnabled ? 6 : 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: skyEnabled ? 'white' : '#9ca3af' }}>Sky</span>
+                <button
+                  onClick={() => setSkyEnabled(prev => !prev)}
+                  style={{
+                    padding: '2px 10px',
+                    fontSize: 11,
+                    fontWeight: 'bold',
+                    border: 'none',
+                    borderRadius: 3,
+                    cursor: 'pointer',
+                    background: skyEnabled ? '#ca8a04' : 'rgba(255,255,255,0.1)',
+                    color: skyEnabled ? 'white' : '#9ca3af',
+                  }}
+                >
+                  {skyEnabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              {skyEnabled && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="range"
+                      min="0" max="1" step="0.01"
+                      value={skyWeight}
+                      onChange={(e) => setSkyWeight(Number(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{
+                      fontSize: 12,
+                      width: 32,
+                      textAlign: 'right',
+                      color: '#d1d5db',
+                      fontFamily: 'monospace',
+                    }}>
+                      {skyWeight.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Y Offset</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="range"
+                        min="-200" max="200" step="1"
+                        value={skyYOffset}
+                        onChange={(e) => setSkyYOffset(Number(e.target.value))}
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{
+                        fontSize: 12,
+                        width: 32,
+                        textAlign: 'right',
+                        color: '#d1d5db',
+                        fontFamily: 'monospace',
+                      }}>
+                        {skyYOffset}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Scale</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="range"
+                        min="100" max="2000" step="10"
+                        value={skyScale}
+                        onChange={(e) => setSkyScale(Number(e.target.value))}
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{
+                        fontSize: 12,
+                        width: 32,
+                        textAlign: 'right',
+                        color: '#d1d5db',
+                        fontFamily: 'monospace',
+                      }}>
+                        {skyScale}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 4 }}>Height Scale</label>
