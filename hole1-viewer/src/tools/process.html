@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Engine: Forest Baker Tool</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: #eee; padding: 20px; }
+        h1 { margin-bottom: 10px; }
+        .controls { margin-bottom: 20px; background: #333; padding: 15px; border-radius: 8px; }
+        canvas { border: 2px solid #555; background: #000; max-width: 100%; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .stats { font-family: monospace; color: #aaa; margin-top: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+
+    <h1>Forest Baker Prototype</h1>
+    <p>Generates "Lip Geometry" and Tree Placements from Surface Map.</p>
+
+    <div class="controls">
+        <input type="file" id="fileInput" accept="image/*">
+        <button onclick="runBake()">Run Bake Process</button>
+        <div class="stats" id="stats">Status: Waiting for image...</div>
+    </div>
+
+    <canvas id="displayCanvas"></canvas>
+
+<script>
+    // CONFIGURATION
+    const TARGET_COLOR = { r: 0, g: 128, b: 0 }; // Approx the dark green forest color
+    const COLOR_TOLERANCE = 100; // How lenient we are with the green detection
+    const TREE_SPACING = 15; // Minimum pixels between trees (Poisson-ish)
+    const LIP_SIMPLIFICATION = 2; // Higher = fewer vertices in the mesh lip
+
+    const canvas = document.getElementById('displayCanvas');
+    const ctx = canvas.getContext('2d');
+    const statDiv = document.getElementById('stats');
+    
+    let sourceImage = new Image();
+    
+    // 1. Load the Image automatically if present, or wait for upload
+    sourceImage.src = 'hole1_surface.png'; 
+    sourceImage.onload = () => {
+        statDiv.innerText = "Image Loaded. Click 'Run Bake Process'.";
+        renderPreview();
+    };
+    sourceImage.onerror = () => statDiv.innerText = "Could not find 'hole1_surface.png'. Please select it manually.";
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            sourceImage = new Image();
+            sourceImage.onload = () => {
+                statDiv.innerText = "Image Loaded. Click 'Run Bake Process'.";
+                renderPreview();
+            };
+            sourceImage.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    function renderPreview() {
+        canvas.width = sourceImage.width;
+        canvas.height = sourceImage.height;
+        ctx.drawImage(sourceImage, 0, 0);
+    }
+
+    // --- MAIN BAKE PIPELINE ---
+    
+    function runBake() {
+        if (!sourceImage.width) return;
+        statDiv.innerText = "Baking...";
+
+        // Step 1: Read Pixel Data
+        ctx.drawImage(sourceImage, 0, 0);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imgData.data;
+
+        // Step 2: Create a Binary Grid (1 = Forest, 0 = Everything else)
+        const width = canvas.width;
+        const height = canvas.height;
+        const grid = new Uint8Array(width * height);
+        
+        for (let i = 0; i < pixels.length; i += 4) {
+            // Simple color distance check
+            const r = pixels[i];
+            const g = pixels[i+1];
+            const b = pixels[i+2];
+            
+            // Check if it's the forest green
+            const dist = Math.sqrt(
+                (r - TARGET_COLOR.r)**2 + 
+                (g - TARGET_COLOR.g)**2 + 
+                (b - TARGET_COLOR.b)**2
+            );
+
+            // Save to grid if it matches green
+            if (dist < COLOR_TOLERANCE) {
+                grid[i / 4] = 1;
+            }
+        }
+
+        // Step 3: Generate "Lip Geometry" (The Outline)
+        // We scan for edges: pixels that are 1 but have a 0 neighbor
+        const lipVertices = [];
+        
+        // Horizontal Scan for edges
+        for (let y = 0; y < height; y += LIP_SIMPLIFICATION) {
+            for (let x = 0; x < width; x += LIP_SIMPLIFICATION) {
+                const index = y * width + x;
+                if (grid[index] === 1) {
+                    // Check neighbors (Up, Down, Left, Right)
+                    // If any neighbor is 0, this is an edge vertex
+                    if (isEdge(x, y, width, height, grid)) {
+                        lipVertices.push({x, y});
+                    }
+                }
+            }
+        }
+
+        // Step 4: Generate Tree Data (Poisson-ish Sampling)
+        const trees = [];
+        // Helper to check distance
+        const isValidPos = (tx, ty) => {
+            for (let t of trees) {
+                const dx = t.x - tx;
+                const dy = t.y - ty;
+                if ((dx*dx + dy*dy) < (TREE_SPACING * TREE_SPACING)) return false;
+            }
+            return true;
+        };
+
+        // Try to spawn trees inside the green zone
+        // In a real engine, use a robust Poisson Disc algo. Here we use rejection sampling.
+        const attempts = (width * height) / 20; // Heuristic amount of tries
+        
+        for (let i = 0; i < attempts; i++) {
+            const rx = Math.floor(Math.random() * width);
+            const ry = Math.floor(Math.random() * height);
+            const idx = ry * width + rx;
+
+            // Must be in forest (grid=1) and not too close to other trees
+            if (grid[idx] === 1) {
+                // Optional: Don't spawn ON the exact lip edge (keep them back a bit)
+                if (isValidPos(rx, ry)) {
+                    trees.push({x: rx, y: ry});
+                }
+            }
+        }
+
+        // --- VISUALIZATION ---
+        drawResults(lipVertices, trees);
+        
+        // Log Data for "Export"
+        console.log("Bake Complete.");
+        console.log("Lip Vertices:", lipVertices.length);
+        console.log("Tree Instances:", trees.length);
+        statDiv.innerHTML = `<b>Bake Complete!</b><br>Lip Vertices Generated: ${lipVertices.length}<br>Trees Spawned: ${trees.length}<br>(See Console for raw data arrays)`;
+    }
+
+    function isEdge(x, y, w, h, grid) {
+        const idx = y * w + x;
+        // Check 4 neighbors boundaries
+        if (x <= 0 || x >= w-1 || y <= 0 || y >= h-1) return true;
+        
+        // If any neighbor is NOT forest (0), we are on the edge
+        const up = (y-1) * w + x;
+        const down = (y+1) * w + x;
+        const left = y * w + (x-1);
+        const right = y * w + (x+1);
+
+        return (grid[up] === 0 || grid[down] === 0 || grid[left] === 0 || grid[right] === 0);
+    }
+
+    function drawResults(lipVerts, trees) {
+        // 1. Clear and Dim background
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. Draw "Lip Geo" (The Forest Floor)
+        // In a real 3D engine, this would be a mesh. Here we draw dots/lines.
+        ctx.fillStyle = "#2E8B57"; // SeaGreen
+        lipVerts.forEach(v => {
+            ctx.beginPath();
+            ctx.arc(v.x, v.y, 2, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // 3. Draw The Outline (The Vector Look)
+        ctx.fillStyle = "black";
+        lipVerts.forEach(v => {
+            // Draw slightly larger black dots behind to simulate the outline shader
+             ctx.beginPath();
+             ctx.arc(v.x, v.y, 2.5, 0, Math.PI*2);
+             ctx.fill();
+        });
+
+        // 4. Draw Trees
+        // We draw them as circles to represent the billboard placement
+        trees.forEach(t => {
+            // Shadow/Base
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.beginPath();
+            ctx.arc(t.x, t.y + 5, 4, 0, Math.PI*2);
+            ctx.fill();
+
+            // Tree Billboard
+            ctx.fillStyle = "#32CD32"; // LimeGreen
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, 6, 0, Math.PI*2);
+            ctx.fill();
+            
+            // Tree Outline
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+        });
+    }
+
+</script>
+</body>
+</html>
