@@ -30,9 +30,7 @@ export function DebugOverlay() {
     maxTerrainHeight,
     setMaxTerrainHeight,
     terrainYOffset,
-    setTerrainYOffset,
-    viewerMode,
-    setViewerMode
+    setTerrainYOffset
   } = useDebugStore();
   
   const groundHeight = getHeight(ballPos[0], ballPos[2]);
@@ -128,15 +126,6 @@ export function DebugOverlay() {
             style={{ marginRight: '5px' }}
           />
           Open Surface Editor (Paint)
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-          <input 
-            type="checkbox" 
-            checked={viewerMode} 
-            onChange={(e) => setViewerMode(e.target.checked)}
-            style={{ marginRight: '5px' }}
-          />
-          Hole Viewer (Shader Playground)
         </label>
       </div>
 

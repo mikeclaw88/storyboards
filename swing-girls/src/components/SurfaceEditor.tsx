@@ -1,6 +1,5 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-import { useThree } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useDebugStore } from '../stores/debugStore';
 
@@ -21,32 +20,26 @@ const WORLD_WIDTH = 300; // Meters width (X: -150 to 150)
 const WORLD_DEPTH = 400; // Meters depth (Z: -50 to 350)
 const WORLD_OFFSET_Z = 150; // Center Z
 
-// Reusable clipping plane — clips everything above yCutoff
-const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
-
 export function SurfaceEditor() {
   const { surfaceEditorOpen } = useDebugStore();
-  const gl = useThree((s) => s.gl);
+  const { camera, raycaster, pointer, scene } = useThree();
   const canvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
   const textureRef = useRef<THREE.CanvasTexture | null>(null);
   const [selectedSurface, setSelectedSurface] = useState<SurfaceType>('Fairway');
   const [brushSize, setBrushSize] = useState(10);
-  const isPaintingRef = useRef(false);
-  const [yCutoff, setYCutoff] = useState(100);
+  const [isPainting, setIsPainting] = useState(false);
 
-  const SURFACE_MAP_URL = './splats/hole1surface.png';
-
-  // Initialize Canvas + texture once
+  // Initialize Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     canvas.width = MAP_SIZE;
     canvas.height = MAP_SIZE;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.fillStyle = COLORS.Rough;
+      ctx.fillStyle = COLORS.Rough; // Default background
       ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
     }
-
+    
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -55,47 +48,26 @@ export function SurfaceEditor() {
     textureRef.current = tex;
   }, []);
 
-  // Load existing surface map when editor opens
-  useEffect(() => {
-    if (!surfaceEditorOpen) return;
+  // Painting Logic
+  const paint = (point: THREE.Vector3) => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, MAP_SIZE, MAP_SIZE);
-      if (textureRef.current) textureRef.current.needsUpdate = true;
-    };
-    // Cache-bust to get latest saved version
-    img.src = `${SURFACE_MAP_URL}?t=${Date.now()}`;
-  }, [surfaceEditorOpen]);
-
-  // Manage global clipping plane when editor opens/closes or yCutoff changes
-  useEffect(() => {
-    if (surfaceEditorOpen) {
-      clipPlane.constant = yCutoff;
-      gl.clippingPlanes = [clipPlane];
-    } else {
-      gl.clippingPlanes = [];
-    }
-    return () => {
-      gl.clippingPlanes = [];
-    };
-  }, [surfaceEditorOpen, yCutoff, gl]);
-
-  // Paint at UV coordinates from mesh intersection — no manual coordinate math needed
-  const paint = useCallback((uv: { x: number; y: number }) => {
-    const ctx = canvasRef.current.getContext('2d');
     if (!ctx || !textureRef.current) return;
 
-    const px = Math.floor(uv.x * MAP_SIZE);
-    const py = Math.floor((1 - uv.y) * MAP_SIZE); // Flip V: canvas Y is top-down, UV Y is bottom-up
+    // Map World (X, Z) to Canvas (0..SIZE)
+    // X: -150 to 150 -> 0 to 512
+    const u = (point.x + WORLD_WIDTH / 2) / WORLD_WIDTH;
+    // Z: -50 to 350 -> 0 to 512 (Inverted Z typically for maps?)
+    // Let's assume Z increases downwards on map
+    const v = (point.z + 50) / WORLD_DEPTH;
 
-    if (px < 0 || px >= MAP_SIZE || py < 0 || py >= MAP_SIZE) return;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
 
-    const brushPx = Math.max(1, (brushSize / WORLD_WIDTH) * MAP_SIZE);
+    const px = Math.floor(u * MAP_SIZE);
+    const py = Math.floor(v * MAP_SIZE);
+    
+    // Scale brush size
+    const brushPx = (brushSize / WORLD_WIDTH) * MAP_SIZE;
 
     ctx.fillStyle = COLORS[selectedSurface];
     ctx.beginPath();
@@ -103,114 +75,112 @@ export function SurfaceEditor() {
     ctx.fill();
 
     textureRef.current.needsUpdate = true;
-  }, [selectedSurface, brushSize]);
+  };
+
+  useFrame(() => {
+    if (!surfaceEditorOpen || !isPainting) return;
+
+    raycaster.setFromCamera(pointer, camera);
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    // Find ground intersection (usually the mesh named 'Terrain' or just lowest plane)
+    // We'll intersect a virtual plane at Y=0 for stability
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, target);
+    
+    if (target) {
+      paint(target);
+    }
+  });
 
   if (!surfaceEditorOpen) return null;
 
   return (
     <>
-      {/* Paintable Surface Overlay */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.5, WORLD_OFFSET_Z]}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return; // Only left click paints; right click passes through for camera pan
-          e.stopPropagation();
-          isPaintingRef.current = true;
-          if (e.uv) paint(e.uv);
-        }}
-        onPointerMove={(e) => {
-          if (!isPaintingRef.current) return;
-          e.stopPropagation();
-          if (e.uv) paint(e.uv);
-        }}
-        onPointerUp={() => { isPaintingRef.current = false; }}
-        onPointerLeave={() => { isPaintingRef.current = false; }}
-      >
-        <planeGeometry args={[WORLD_WIDTH, WORLD_DEPTH]} />
-        <meshBasicMaterial
-          transparent
-          opacity={0.6}
-          map={textureRef.current}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* Editor UI Overlay */}
+      <group>
+        {/* Paintable Surface Overlay - Slightly above ground to see it */}
+        <mesh 
+          rotation={[-Math.PI / 2, 0, 0]} 
+          position={[0, 0.5, WORLD_OFFSET_Z - 50]} // Center of our mapped area
+          onPointerDown={() => setIsPainting(true)}
+          onPointerUp={() => setIsPainting(false)}
+          onPointerLeave={() => setIsPainting(false)}
+        >
+          <planeGeometry args={[WORLD_WIDTH, WORLD_DEPTH]} />
+          <meshBasicMaterial 
+            transparent={true} 
+            opacity={0.6} 
+            map={textureRef.current} 
+            alphaMap={textureRef.current} // Use color as alpha proxy? No, just semi-transparent
+          />
+        </mesh>
+      </group>
 
       {/* HTML UI for Tool Selection */}
-      <Html fullscreen zIndexRange={[20000, 20001]}>
-        <div style={{
-          position: 'absolute',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: '#1a1a1a',
-          padding: '10px',
-          borderRadius: '8px',
-          border: '1px solid #fff',
-          display: 'flex',
-          gap: '10px',
-          zIndex: 20000,
-          pointerEvents: 'auto'
-        }}>
-          {SURFACE_TYPES.map(type => (
-            <button
-              key={type}
-              onClick={() => setSelectedSurface(type)}
-              style={{
-                background: selectedSurface === type ? COLORS[type] : '#333',
-                color: '#fff',
-                border: `2px solid ${selectedSurface === type ? '#fff' : 'transparent'}`,
-                padding: '8px 12px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                textShadow: '0 1px 2px black'
-              }}
-            >
-              {type}
-            </button>
-          ))}
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginLeft: '10px' }}>
-            <label style={{ color: 'white', fontSize: '10px' }}>Brush: {brushSize}m</label>
-            <input
-              type="range"
-              min="1"
-              max="50"
-              value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginLeft: '10px' }}>
-            <label style={{ color: 'white', fontSize: '10px' }}>Y Cutoff: {yCutoff}m</label>
-            <input
-              type="range"
-              min="1"
-              max="100"
-              value={yCutoff}
-              onChange={(e) => setYCutoff(Number(e.target.value))}
-            />
-          </div>
+      <div style={{
+        position: 'absolute',
+        bottom: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: '#1a1a1a',
+        padding: '10px',
+        borderRadius: '8px',
+        border: '1px solid #fff',
+        display: 'flex',
+        gap: '10px',
+        zIndex: 20000,
+        pointerEvents: 'auto'
+      }}>
+        {SURFACE_TYPES.map(type => (
           <button
-            onClick={() => {
-              const link = document.createElement('a');
-              link.download = 'surface-map.png';
-              link.href = canvasRef.current.toDataURL();
-              link.click();
-            }}
+            key={type}
+            onClick={() => setSelectedSurface(type)}
             style={{
-              background: '#3b82f6',
+              background: selectedSurface === type ? COLORS[type] : '#333',
               color: '#fff',
-              border: 'none',
+              border: `2px solid ${selectedSurface === type ? '#fff' : 'transparent'}`,
               padding: '8px 12px',
               borderRadius: '4px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              textShadow: '0 1px 2px black'
             }}
           >
-            Save Map
+            {type}
           </button>
+        ))}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginLeft: '10px' }}>
+          <label style={{color: 'white', fontSize: '10px'}}>Brush Size</label>
+          <input 
+            type="range" 
+            min="1" 
+            max="50" 
+            value={brushSize} 
+            onChange={(e) => setBrushSize(Number(e.target.value))} 
+          />
         </div>
-      </Html>
+        <button
+          onClick={() => {
+             // Save logic (download image)
+             const link = document.createElement('a');
+             link.download = 'surface-map.png';
+             link.href = canvasRef.current.toDataURL();
+             link.click();
+          }}
+          style={{
+            background: '#3b82f6',
+            color: '#fff',
+            border: 'none',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Save Map
+        </button>
+      </div>
     </>
   );
 }

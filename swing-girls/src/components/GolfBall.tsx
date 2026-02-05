@@ -2,7 +2,7 @@ import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Trail } from '@react-three/drei';
 import { Mesh } from 'three';
-import { useGameStore, BUMP_DIRECTION_VECTORS } from '../stores/gameStore';
+import { useGameStore } from '../stores/gameStore';
 import { useTerrainStore } from '../stores/terrainStore';
 import type { FlightState } from '../utils/ballPhysics';
 import {
@@ -37,7 +37,6 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
   const gameMode = useGameStore((s) => s.gameMode);
   const currentShot = useGameStore((s) => s.topgolf.currentShot);
   const recordTopgolfShot = useGameStore((s) => s.recordTopgolfShot);
-  const spinBumps = useGameStore((s) => s.spinBumps);
 
   // Get terrain height function for collision detection
   const getTerrainHeight = useTerrainStore((s) => s.getHeightAtWorldPosition);
@@ -58,7 +57,7 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
         swingResult.direction,
         aimAngle
       );
-      flightStateRef.current = createInitialFlightState(startPosition, velocity, swingResult.sidespin ?? 0);
+      flightStateRef.current = createInitialFlightState(startPosition, velocity);
     }
 
     if (!ball.isFlying) {
@@ -69,14 +68,10 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
   // Track if we've already processed landing for this flight
   const hasLandedRef = useRef(false);
 
-  // Track if spin bumps have been applied for this flight
-  const bumpsAppliedRef = useRef(false);
-
-  // Reset landing flag and bumps flag when ball starts flying
+  // Reset landing flag when ball starts flying
   useEffect(() => {
     if (ball.isFlying) {
       hasLandedRef.current = false;
-      bumpsAppliedRef.current = false;
     }
   }, [ball.isFlying]);
 
@@ -108,27 +103,6 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
         }
       }
 
-      // Apply spin bumps on first bounce
-      const BUMP_SPEED = 3.0;
-      if (newState.justBounced && newState.bounceCount === 1 && !bumpsAppliedRef.current && spinBumps.totalUsed > 0) {
-        let bumpX = 0;
-        let bumpZ = 0;
-        for (let i = 0; i < 8; i++) {
-          if (spinBumps.allocations[i] > 0) {
-            bumpX += BUMP_DIRECTION_VECTORS[i][0] * spinBumps.allocations[i];
-            bumpZ += BUMP_DIRECTION_VECTORS[i][1] * spinBumps.allocations[i];
-          }
-        }
-        // Rotate from grid-relative to world-space using aimAngle
-        const cosA = Math.cos(aimAngle);
-        const sinA = Math.sin(aimAngle);
-        const worldX = bumpX * cosA + bumpZ * sinA;
-        const worldZ = -bumpX * sinA + bumpZ * cosA;
-        newState.velocity[0] += worldX * BUMP_SPEED;
-        newState.velocity[2] += worldZ * BUMP_SPEED;
-        bumpsAppliedRef.current = true;
-      }
-
       flightStateRef.current = newState;
 
       // Update mesh position from physics state
@@ -138,9 +112,7 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
         newState.position[2]
       );
 
-      // Update store: position + live distance
-      const liveDistance = calculateDistance(startPosition, newState.position);
-      updateBallPosition(newState.position, liveDistance);
+      updateBallPosition(newState.position);
 
       // In topgolf mode: check if ball touched ground inside a target zone
       // If so, stop immediately without rolling

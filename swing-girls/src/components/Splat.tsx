@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
+import { SplatMesh } from '@sparkjsdev/spark';
 import * as THREE from 'three';
-import { getSplatMesh } from '../utils/splatCache';
 
 interface SplatProps {
   url: string;
@@ -12,7 +12,7 @@ interface SplatProps {
 }
 
 /**
- * Gaussian Splat component using cached instances
+ * Gaussian Splat component using @sparkjsdev/spark
  */
 export function Splat({
   url,
@@ -25,10 +25,9 @@ export function Splat({
   const splatRef = useRef<THREE.Object3D | null>(null);
 
   useEffect(() => {
-    // Get cached splat mesh (singleton)
-    const splat = getSplatMesh(url);
-    if (!splat) return;
-    
+    // Create splat mesh
+    // @ts-ignore
+    const splat = new SplatMesh({ url });
     splatRef.current = splat;
 
     // Apply transform
@@ -44,7 +43,6 @@ export function Splat({
     // Add to scene
     scene.add(splat);
 
-    // Cleanup: Don't dispose the mesh/geometry, just remove from scene
     return () => {
       scene.remove(splat);
       splatRef.current = null;
@@ -80,5 +78,6 @@ export function Splat({
     }
   }, [visible]);
 
+  // Component doesn't render anything directly - splat is added to scene
   return null;
 }

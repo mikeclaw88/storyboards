@@ -23,8 +23,6 @@ interface DebugState {
   setGreenSplatOffset: (axis: 'x' | 'y' | 'z', value: number) => void;
   setMaxTerrainHeight: (value: number) => void;
   setTerrainYOffset: (value: number) => void;
-  viewerMode: boolean;
-  setViewerMode: (mode: boolean) => void;
 }
 
 export const useDebugStore = create<DebugState>((set) => ({
@@ -37,7 +35,6 @@ export const useDebugStore = create<DebugState>((set) => ({
   greenSplatOffset: { x: 0, y: 1, z: 147 },
   maxTerrainHeight: 0,
   terrainYOffset: -3,
-  viewerMode: false,
 
   setShowWireframe: (show) => set({ showWireframe: show }),
   toggleWireframe: () => set((state) => ({ showWireframe: !state.showWireframe })),
@@ -56,5 +53,4 @@ export const useDebugStore = create<DebugState>((set) => ({
   })),
   setMaxTerrainHeight: (value) => set({ maxTerrainHeight: value }),
   setTerrainYOffset: (value) => set({ terrainYOffset: value }),
-  setViewerMode: (mode) => set({ viewerMode: mode }),
 }));

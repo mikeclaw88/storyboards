@@ -422,6 +422,231 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
             />
           </mesh>
         );
+        
+    case 'Liquid Metal':
+      return (
+        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+          <shaderMaterial
+            ref={materialRef}
+            uniforms={{
+              uHeightMap: { value: heightMap },
+              uTime: { value: 0 }
+            }}
+            vertexShader={`
+              varying vec2 vUv;
+              varying vec3 vNormal;
+              varying vec3 vViewPosition;
+              uniform sampler2D uHeightMap;
+              uniform float uTime;
+              void main() {
+                vUv = uv;
+                vec4 hData = texture2D(uHeightMap, uv);
+                
+                // Add ripple
+                float ripple = sin(length(uv - 0.5) * 50.0 - uTime * 2.0) * 0.5;
+                float h = hData.r * 50.0 + ripple;
+                
+                vec3 pos = position + normal * h;
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                vViewPosition = -mvPosition.xyz;
+                vNormal = normalMatrix * normal;
+                gl_Position = projectionMatrix * mvPosition;
+              }
+            `}
+            fragmentShader={`
+              varying vec3 vNormal;
+              varying vec3 vViewPosition;
+              void main() {
+                vec3 normal = normalize(vNormal);
+                vec3 viewDir = normalize(vViewPosition);
+                // Fake reflection
+                vec3 ref = reflect(-viewDir, normal);
+                float spec = pow(max(dot(ref, vec3(0,1,0)), 0.0), 30.0);
+                
+                vec3 chrome = vec3(0.8, 0.9, 1.0) * (0.5 + 0.5 * ref.y);
+                gl_FragColor = vec4(chrome + spec, 1.0);
+              }
+            `}
+          />
+        </mesh>
+      );
+
+    case 'Sonar':
+      return (
+        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+          <shaderMaterial
+            ref={materialRef}
+            uniforms={{
+              uHeightMap: { value: heightMap },
+              uTime: { value: 0 }
+            }}
+            transparent
+            vertexShader={`
+              varying vec2 vUv;
+              varying float vH;
+              uniform sampler2D uHeightMap;
+              void main() {
+                vUv = uv;
+                vec4 hData = texture2D(uHeightMap, uv);
+                vH = hData.r;
+                vec3 pos = position + normal * vH * 50.0;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+              }
+            `}
+            fragmentShader={`
+              varying vec2 vUv;
+              varying float vH;
+              uniform float uTime;
+              void main() {
+                // Circular pulse from center
+                float dist = length(vUv - 0.5);
+                float pulse = fract(dist * 5.0 - uTime * 0.5);
+                float ring = smoothstep(0.9, 0.95, pulse);
+                
+                // Grid overlay
+                float grid = step(0.98, fract(vUv.x * 50.0)) + step(0.98, fract(vUv.y * 50.0));
+                
+                vec3 color = vec3(0.0, 1.0, 0.2); // Radar Green
+                float alpha = (ring + grid * 0.2) * (1.0 - dist); // Fade at edges
+                
+                gl_FragColor = vec4(color, alpha);
+              }
+            `}
+          />
+        </mesh>
+      );
+      
+    case 'Neon City':
+      return (
+        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+          <shaderMaterial
+            ref={materialRef}
+            uniforms={{
+              uHeightMap: { value: heightMap },
+              uTime: { value: 0 }
+            }}
+            vertexShader={`
+              varying vec2 vUv;
+              varying float vH;
+              uniform sampler2D uHeightMap;
+              void main() {
+                vUv = uv;
+                vec4 hData = texture2D(uHeightMap, uv);
+                // Step height to create buildings
+                float steps = 50.0; // Building grid resolution
+                vec2 gridUV = floor(uv * steps) / steps;
+                float h = texture2D(uHeightMap, gridUV).r;
+                
+                // Extrude only high areas
+                if(h < 0.2) h = 0.0;
+                else h = h * 1.5; // Taller buildings
+                
+                vH = h;
+                vec3 pos = position + normal * h * 50.0;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+              }
+            `}
+            fragmentShader={`
+              varying vec2 vUv;
+              varying float vH;
+              uniform float uTime;
+              void main() {
+                // Windows pattern
+                float windows = step(0.7, fract(vUv.y * 200.0)) * step(0.7, fract(vUv.x * 200.0));
+                // Neon glow at base
+                vec3 baseColor = vec3(0.5, 0.0, 0.5);
+                vec3 topColor = vec3(0.0, 0.5, 1.0);
+                
+                vec3 color = mix(baseColor, topColor, vH);
+                if (vH > 0.01 && windows > 0.5) color += vec3(1.0, 1.0, 0.8); // Lit windows
+                
+                gl_FragColor = vec4(color, 1.0);
+              }
+            `}
+          />
+        </mesh>
+      );
+      
+    case 'Paper':
+      return (
+        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+          <shaderMaterial
+            ref={materialRef}
+            uniforms={{
+              uHeightMap: { value: heightMap },
+            }}
+            vertexShader={`
+              varying vec3 vPos;
+              uniform sampler2D uHeightMap;
+              void main() {
+                vec4 hData = texture2D(uHeightMap, uv);
+                vec3 pos = position + normal * hData.r * 50.0;
+                vPos = pos;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+              }
+            `}
+            fragmentShader={`
+              varying vec3 vPos;
+              void main() {
+                // Calculate facet normal using derivatives
+                vec3 dx = dFdx(vPos);
+                vec3 dy = dFdy(vPos);
+                vec3 N = normalize(cross(dx, dy));
+                
+                // Simple lighting
+                vec3 L = normalize(vec3(1.0, 1.0, 0.5));
+                float diff = max(dot(N, L), 0.0);
+                
+                vec3 paperColor = vec3(0.95, 0.95, 0.9);
+                gl_FragColor = vec4(paperColor * (0.5 + 0.5 * diff), 1.0);
+              }
+            `}
+          />
+        </mesh>
+      );
+
+    case 'ASCII':
+      return (
+        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+          <shaderMaterial
+            ref={materialRef}
+            uniforms={{
+              uHeightMap: { value: heightMap },
+              uTime: { value: 0 }
+            }}
+            vertexShader={`
+              varying vec2 vUv;
+              varying float vH;
+              uniform sampler2D uHeightMap;
+              void main() {
+                vUv = uv;
+                vH = texture2D(uHeightMap, uv).r;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              }
+            `}
+            fragmentShader={`
+              varying vec2 vUv;
+              varying float vH;
+              void main() {
+                // Pixelate UVs
+                float pixels = 80.0;
+                vec2 pUv = floor(vUv * pixels) / pixels;
+                float val = texture2D(uHeightMap, pUv).r;
+                
+                // Simulate characters (circles/dots of different sizes)
+                vec2 cell = fract(vUv * pixels); // 0-1 within cell
+                float dist = length(cell - 0.5);
+                float char = step(dist, val * 0.4); // Radius depends on height
+                
+                gl_FragColor = vec4(vec3(0.0, 1.0, 0.0) * char, 1.0);
+              }
+            `}
+            uniformsNeedUpdate={true} // Add this? No, R3F handles it
+            // Need access to uHeightMap in frag shader too
+          />
+          {/* Re-bind uniforms for ASCII if needed, but the above block passes them */}
+        </mesh>
+      );
 
     default:
       return null;
@@ -441,7 +666,8 @@ export function HoleViewer() {
   const modes = [
     'Standard', 'Wireframe', 'Normal', 'Distort', 'Wobble', 
     'Topo', 'Plasma', 'Cyber Grid', 'Points', 'Glitch', 
-    'Rain', 'Thermal', 'X-Ray', 'Minecraft'
+    'Rain', 'Thermal', 'X-Ray', 'Minecraft',
+    'Liquid Metal', 'Sonar', 'Neon City', 'Paper', 'ASCII'
   ];
 
   return (

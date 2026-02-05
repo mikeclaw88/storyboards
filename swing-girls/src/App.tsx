@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Loader } from '@react-three/drei';
 import { PCFSoftShadowMap } from 'three';
@@ -14,23 +14,10 @@ import { DebugOverlay } from './components/DebugOverlay';
 import { LoadScreen } from './components/LoadScreen';
 import { GameHUD } from './components/GameHUD';
 import { GameEndModal } from './components/GameEndModal';
-import { initSurfaceMap } from './utils/surfaceDetection';
-import { HoleViewer } from './scenes/HoleViewer';
-import { useDebugStore } from './stores/debugStore';
 
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
   const setArcPower = useGameStore((s) => s.setArcPower);
-  const viewerMode = useDebugStore((s) => s.viewerMode);
-
-  // Load surface map for terrain type detection
-  useEffect(() => {
-    initSurfaceMap();
-  }, []);
-
-  if (viewerMode) {
-    return <HoleViewer />;
-  }
 
   return (
     <div className="w-full h-full relative">

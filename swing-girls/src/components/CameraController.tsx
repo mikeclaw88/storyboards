@@ -35,12 +35,10 @@ export function CameraController({
 }: CameraControllerProps) {
   const ball = useGameStore((s) => s.ball);
   const screenMode = useGameStore((s) => s.screenMode);
-  const swingPhase = useGameStore((s) => s.swingPhase);
   const { getSelectionCamera, getPlayCamera } = useMotionConfig();
   const targetRef = useRef(new Vector3(0, 1, 0));
   const isFollowingRef = useRef(false);
   const lastScreenModeRef = useRef<string>('');
-  const lastSwingPhaseRef = useRef<string>('');
   const followDelayTimerRef = useRef(0);
   const returnDelayTimerRef = useRef(0);
   const isWaitingToReturnRef = useRef(false);
@@ -129,21 +127,6 @@ export function CameraController({
     }
     lastScreenModeRef.current = screenMode;
 
-    // Reset camera to tee when a new shot starts (swingPhase goes back to 'ready')
-    if (screenMode === 'playing' && swingPhase === 'ready' && lastSwingPhaseRef.current === 'finished') {
-      state.camera.position.copy(playCameraPosition);
-      controls.target.copy(playCameraTarget);
-      targetRef.current.copy(playCameraTarget);
-      controls.update();
-      onCenterAzimuthChange?.(controls.getAzimuthalAngle());
-      isFollowingRef.current = false;
-      isWaitingToReturnRef.current = false;
-      followDelayTimerRef.current = 0;
-      returnDelayTimerRef.current = 0;
-      onFollowStateChange?.(false);
-    }
-    lastSwingPhaseRef.current = swingPhase;
-
     // Track when ball starts flying to reset delay timers
     if (ball.isFlying && !wasBallFlyingRef.current) {
       followDelayTimerRef.current = 0;
@@ -214,9 +197,17 @@ export function CameraController({
       state.camera.lookAt(waitingTargetPosRef.current);
       controls.target.copy(waitingTargetPosRef.current);
 
-      // Disable auto-return (wait for next shot trigger)
-      // returnDelayTimerRef.current += delta;
-      // if (returnDelayTimerRef.current >= CAMERA_RETURN_DELAY) { ... }
+      returnDelayTimerRef.current += delta;
+
+      // After delay, return to play camera
+      if (returnDelayTimerRef.current >= CAMERA_RETURN_DELAY) {
+        targetRef.current.copy(playCameraTarget);
+        controls.target.copy(playCameraTarget);
+        state.camera.position.copy(playCameraPosition);
+        isFollowingRef.current = false;
+        isWaitingToReturnRef.current = false;
+        onFollowStateChange?.(false);
+      }
     }
   });
 
