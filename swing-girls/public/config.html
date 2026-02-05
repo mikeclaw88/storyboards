@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swing Girls - Config</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 20px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #4ade80;
+    }
+
+    h2 {
+      color: #60a5fa;
+      margin: 20px 0 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #333;
+    }
+
+    h3 {
+      color: #94a3b8;
+      font-size: 14px;
+      margin: 15px 0 8px;
+    }
+
+    .config-section {
+      background: #16213e;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .control-group {
+      margin-bottom: 15px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    label {
+      width: 80px;
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      -webkit-appearance: none;
+      background: #333;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #4ade80;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .value-display {
+      width: 70px;
+      text-align: right;
+      font-family: monospace;
+      font-size: 13px;
+      color: #4ade80;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: #4ade80;
+      color: #000;
+    }
+
+    button.primary:hover {
+      background: #22c55e;
+    }
+
+    button.secondary {
+      background: #333;
+      color: #eee;
+    }
+
+    button.secondary:hover {
+      background: #444;
+    }
+
+    .status {
+      text-align: center;
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 13px;
+    }
+
+    .status.ready {
+      background: #1e3a5f;
+      color: #60a5fa;
+    }
+
+    .status.saved {
+      background: #14532d;
+      color: #4ade80;
+    }
+
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    .preset-btn {
+      padding: 8px 12px;
+      font-size: 12px;
+      flex: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Swing Girls Config</h1>
+
+  <!-- Club Settings -->
+  <div class="config-section">
+    <h2>Club Local Transform</h2>
+
+    <h3>Position</h3>
+    <div class="control-group">
+      <div class="control-row">
+        <label>X</label>
+        <input type="range" id="clubPosX" min="-0.5" max="0.5" step="0.01" value="0">
+        <span class="value-display" id="clubPosXVal">0</span>
+      </div>
+      <div class="control-row">
+        <label>Y</label>
+        <input type="range" id="clubPosY" min="-0.2" max="0.3" step="0.01" value="0.05">
+        <span class="value-display" id="clubPosYVal">0.05</span>
+      </div>
+      <div class="control-row">
+        <label>Z</label>
+        <input type="range" id="clubPosZ" min="-0.5" max="0.5" step="0.01" value="0">
+        <span class="value-display" id="clubPosZVal">0</span>
+      </div>
+    </div>
+
+    <h3>Rotation (degrees)</h3>
+    <div class="control-group">
+      <div class="control-row">
+        <label>X</label>
+        <input type="range" id="clubRotX" min="-180" max="180" step="1" value="-90">
+        <span class="value-display" id="clubRotXVal">-90</span>
+      </div>
+      <div class="control-row">
+        <label>Y</label>
+        <input type="range" id="clubRotY" min="-180" max="180" step="1" value="-90">
+        <span class="value-display" id="clubRotYVal">-90</span>
+      </div>
+      <div class="control-row">
+        <label>Z</label>
+        <input type="range" id="clubRotZ" min="-180" max="180" step="1" value="-90">
+        <span class="value-display" id="clubRotZVal">-90</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ball Settings -->
+  <div class="config-section">
+    <h2>Ball Position</h2>
+    <div class="control-group">
+      <div class="control-row">
+        <label>X</label>
+        <input type="range" id="ballPosX" min="-2" max="2" step="0.05" value="-0.5">
+        <span class="value-display" id="ballPosXVal">-0.5</span>
+      </div>
+      <div class="control-row">
+        <label>Y</label>
+        <input type="range" id="ballPosY" min="0" max="0.5" step="0.01" value="0.02">
+        <span class="value-display" id="ballPosYVal">0.02</span>
+      </div>
+      <div class="control-row">
+        <label>Z</label>
+        <input type="range" id="ballPosZ" min="-2" max="2" step="0.05" value="0.3">
+        <span class="value-display" id="ballPosZVal">0.3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="button-row">
+    <button class="secondary" onclick="resetToDefault()">Reset Default</button>
+    <button class="primary" onclick="saveConfig()">Save</button>
+    <button class="secondary" onclick="exportConfig()">Export</button>
+  </div>
+
+  <div class="status ready" id="status">Ready - Changes broadcast in real-time</div>
+
+  <script>
+    const CHANNEL_NAME = 'swing-girls-config';
+    const channel = new BroadcastChannel(CHANNEL_NAME);
+
+    const DEG_TO_RAD = Math.PI / 180;
+    const RAD_TO_DEG = 180 / Math.PI;
+
+    const DEFAULT_CONFIG = {
+      club: {
+        position: { x: 0, y: 0.05, z: 0 },
+        rotation: { x: -Math.PI / 2, y: -Math.PI / 2, z: -Math.PI / 2 },
+      },
+      ball: {
+        position: { x: -0.5, y: 0.02, z: 0.3 },
+      },
+    };
+
+    // Slider IDs mapping
+    const sliders = {
+      clubPosX: 'club.position.x',
+      clubPosY: 'club.position.y',
+      clubPosZ: 'club.position.z',
+      clubRotX: 'club.rotation.x',
+      clubRotY: 'club.rotation.y',
+      clubRotZ: 'club.rotation.z',
+      ballPosX: 'ball.position.x',
+      ballPosY: 'ball.position.y',
+      ballPosZ: 'ball.position.z',
+    };
+
+    function getConfig() {
+      // Convert degrees to radians for rotation
+      return {
+        club: {
+          position: {
+            x: parseFloat(document.getElementById('clubPosX').value),
+            y: parseFloat(document.getElementById('clubPosY').value),
+            z: parseFloat(document.getElementById('clubPosZ').value),
+          },
+          rotation: {
+            x: parseFloat(document.getElementById('clubRotX').value) * DEG_TO_RAD,
+            y: parseFloat(document.getElementById('clubRotY').value) * DEG_TO_RAD,
+            z: parseFloat(document.getElementById('clubRotZ').value) * DEG_TO_RAD,
+          },
+        },
+        ball: {
+          position: {
+            x: parseFloat(document.getElementById('ballPosX').value),
+            y: parseFloat(document.getElementById('ballPosY').value),
+            z: parseFloat(document.getElementById('ballPosZ').value),
+          },
+        },
+      };
+    }
+
+    function setConfig(config) {
+      // Convert radians to degrees for rotation display
+      document.getElementById('clubPosX').value = config.club.position.x;
+      document.getElementById('clubPosY').value = config.club.position.y;
+      document.getElementById('clubPosZ').value = config.club.position.z;
+      document.getElementById('clubRotX').value = Math.round(config.club.rotation.x * RAD_TO_DEG);
+      document.getElementById('clubRotY').value = Math.round(config.club.rotation.y * RAD_TO_DEG);
+      document.getElementById('clubRotZ').value = Math.round(config.club.rotation.z * RAD_TO_DEG);
+      document.getElementById('ballPosX').value = config.ball.position.x;
+      document.getElementById('ballPosY').value = config.ball.position.y;
+      document.getElementById('ballPosZ').value = config.ball.position.z;
+      updateAllDisplays();
+    }
+
+    function updateDisplay(sliderId) {
+      const slider = document.getElementById(sliderId);
+      const display = document.getElementById(sliderId + 'Val');
+      // Show integers for rotation (degrees), 2 decimals for position
+      if (sliderId.includes('Rot')) {
+        display.textContent = Math.round(parseFloat(slider.value));
+      } else {
+        display.textContent = parseFloat(slider.value).toFixed(2);
+      }
+    }
+
+    function updateAllDisplays() {
+      Object.keys(sliders).forEach(updateDisplay);
+    }
+
+    function broadcastConfig() {
+      const config = getConfig();
+      channel.postMessage({ type: 'golf', config });
+    }
+
+    const STORAGE_KEY = 'swing-girls-golf-config';
+
+    function saveConfig() {
+      const config = getConfig();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      channel.postMessage({ type: 'golf', config });
+
+      const status = document.getElementById('status');
+      status.textContent = 'Saved!';
+      status.className = 'status saved';
+      setTimeout(() => {
+        status.textContent = 'Ready - Changes broadcast in real-time';
+        status.className = 'status ready';
+      }, 2000);
+    }
+
+    function exportConfig() {
+      const config = getConfig();
+      const json = JSON.stringify(config, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'config.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const status = document.getElementById('status');
+      status.textContent = 'Exported! Replace public/config.json with the downloaded file.';
+      status.className = 'status saved';
+      setTimeout(() => {
+        status.textContent = 'Ready - Changes broadcast in real-time';
+        status.className = 'status ready';
+      }, 3000);
+    }
+
+    async function resetToDefault() {
+      // Load from config.json (deployed default)
+      try {
+        const res = await fetch('/config.json');
+        const config = await res.json();
+        setConfig(config);
+        broadcastConfig();
+      } catch (e) {
+        console.warn('Failed to load /config.json, using defaults:', e);
+        setConfig(DEFAULT_CONFIG);
+        broadcastConfig();
+      }
+    }
+
+    async function loadConfig() {
+      // Try localStorage first
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          setConfig(JSON.parse(saved));
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to load from localStorage:', e);
+      }
+
+      // Fall back to config.json
+      try {
+        const res = await fetch('/config.json');
+        const config = await res.json();
+        setConfig(config);
+      } catch (e) {
+        console.warn('Failed to load /config.json, using defaults:', e);
+        setConfig(DEFAULT_CONFIG);
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadConfig();
+
+      // Add event listeners to all sliders
+      Object.keys(sliders).forEach(sliderId => {
+        const slider = document.getElementById(sliderId);
+        slider.addEventListener('input', () => {
+          updateDisplay(sliderId);
+          broadcastConfig();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
