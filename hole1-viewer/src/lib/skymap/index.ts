@@ -1,1 +1,0 @@
-export { createSkymap } from './createSkymap';

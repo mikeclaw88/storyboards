@@ -117,5 +117,5 @@ app.post('/api/hole1/forest', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`\n⛳ Golf Baker Server running at: http://localhost:${PORT}`);
-    console.log(`   (Place 'hole1_surface.png' in the /public folder)\n`);
+    console.log(`   Assets served from /assets/\n`);
 });

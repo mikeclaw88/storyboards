@@ -63,6 +63,14 @@
     <input type="range" id="crosshatchDensity" min="4" max="30" step="1" value="12">
     <label>Ring Spacing <span class="value" id="val-ringSpacing">3</span></label>
     <input type="range" id="ringSpacing" min="1" max="10" step="0.5" value="3">
+    <hr>
+    <h4>Skybox Controls</h4>
+    <label>Upper Squish <span class="value" id="val-upperSquish">1.0</span></label>
+    <input type="range" id="upperSquish" min="0.2" max="3.0" step="0.1" value="1.0">
+    <label>Lower Squish <span class="value" id="val-lowerSquish">1.0</span></label>
+    <input type="range" id="lowerSquish" min="0.2" max="3.0" step="0.1" value="1.0">
+    <label>Horizon Stretch <span class="value" id="val-horizonStretch">1.0</span></label>
+    <input type="range" id="horizonStretch" min="0.2" max="3.0" step="0.1" value="1.0">
     <button id="applyBtn">Apply</button>
     <button id="saveBtn">Save Data</button>
     <button id="loadBtn">Load Data</button>
@@ -82,6 +90,9 @@
         stripeWidth: 8,
         crosshatchDensity: 12,
         ringSpacing: 3,
+        upperSquish: 1.0,
+        lowerSquish: 1.0,
+        horizonStretch: 1.0,
     };
 
     // --- TERRAIN SHADER ---
@@ -188,6 +199,51 @@
     // Terrain material reference for uniform updates
     let terrainMaterial = null;
 
+    // --- SKYBOX SHADERS ---
+    const skyboxVertexShader = `
+        varying vec3 vWorldDirection;
+        void main() {
+            vWorldDirection = position;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * mvPosition;
+            gl_Position.z = gl_Position.w; // Push to far plane
+        }
+    `;
+
+    const skyboxFragmentShader = `
+        uniform samplerCube cubemap;
+        uniform float upperSquish;
+        uniform float lowerSquish;
+        uniform float horizonStretch;
+        varying vec3 vWorldDirection;
+
+        void main() {
+            vec3 viewDir = normalize(vWorldDirection);
+            float y = viewDir.y;
+
+            // Apply separate scaling to Upper (+) and Lower (-) hemispheres
+            if (y > 0.0) {
+                y = pow(y, upperSquish);
+            } else {
+                y = -pow(abs(y), lowerSquish);
+            }
+
+            // Apply Horizon Stretch
+            y = y * horizonStretch;
+            y = clamp(y, -1.0, 1.0);
+
+            // Reconstruct the new vector
+            float xzLen = length(viewDir.xz);
+            vec2 xz = (xzLen > 0.001) ? (viewDir.xz / xzLen) * sqrt(1.0 - y * y) : vec2(0.0, 0.0);
+            vec3 newDir = normalize(vec3(xz.x, y, xz.y));
+
+            gl_FragColor = textureCube(cubemap, newDir);
+        }
+    `;
+
+    // Skybox material reference for uniform updates
+    let skyboxMaterial = null;
+
     const ASSETS_PATH = '/assets/hole1';
     const CUBEMAP_PATH = '/assets/nycriver';
 
@@ -220,7 +276,27 @@
     const skybox = cubeTextureLoader
         .setPath(CUBEMAP_PATH + '/')
         .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
-    scene.background = skybox;
+
+    // Create custom skybox sphere with remapping shader
+    skyboxMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            cubemap: { value: skybox },
+            upperSquish: { value: config.upperSquish },
+            lowerSquish: { value: config.lowerSquish },
+            horizonStretch: { value: config.horizonStretch },
+        },
+        vertexShader: skyboxVertexShader,
+        fragmentShader: skyboxFragmentShader,
+        side: THREE.BackSide,
+        depthWrite: false,
+        depthTest: false,
+    });
+
+    const skyboxGeometry = new THREE.SphereGeometry(5000, 32, 32);
+    const skyboxMesh = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+    skyboxMesh.renderOrder = -1000;
+    skyboxMesh.frustumCulled = false;
+    scene.add(skyboxMesh);
 
     // --- PRE-LOAD TREE TEXTURES ---
     const treeTextures = [
@@ -356,6 +432,9 @@
             config.stripeWidth = forestData.config.stripeWidth ?? config.stripeWidth;
             config.crosshatchDensity = forestData.config.crosshatchDensity ?? config.crosshatchDensity;
             config.ringSpacing = forestData.config.ringSpacing ?? config.ringSpacing;
+            config.upperSquish = forestData.config.upperSquish ?? config.upperSquish;
+            config.lowerSquish = forestData.config.lowerSquish ?? config.lowerSquish;
+            config.horizonStretch = forestData.config.horizonStretch ?? config.horizonStretch;
 
             // Update slider values and displays
             sliders.terrainSize.value = config.terrainSize;
@@ -365,6 +444,9 @@
             sliders.stripeWidth.value = config.stripeWidth;
             sliders.crosshatchDensity.value = config.crosshatchDensity;
             sliders.ringSpacing.value = config.ringSpacing;
+            sliders.upperSquish.value = config.upperSquish;
+            sliders.lowerSquish.value = config.lowerSquish;
+            sliders.horizonStretch.value = config.horizonStretch;
 
             document.getElementById('val-terrainSize').textContent = config.terrainSize;
             document.getElementById('val-segments').textContent = config.segments;
@@ -373,6 +455,16 @@
             document.getElementById('val-stripeWidth').textContent = config.stripeWidth;
             document.getElementById('val-crosshatchDensity').textContent = config.crosshatchDensity;
             document.getElementById('val-ringSpacing').textContent = config.ringSpacing;
+            document.getElementById('val-upperSquish').textContent = config.upperSquish;
+            document.getElementById('val-lowerSquish').textContent = config.lowerSquish;
+            document.getElementById('val-horizonStretch').textContent = config.horizonStretch;
+
+            // Update skybox shader uniforms
+            if (skyboxMaterial) {
+                skyboxMaterial.uniforms.upperSquish.value = config.upperSquish;
+                skyboxMaterial.uniforms.lowerSquish.value = config.lowerSquish;
+                skyboxMaterial.uniforms.horizonStretch.value = config.horizonStretch;
+            }
         }
 
         createTerrain();
@@ -514,6 +606,9 @@
         stripeWidth: document.getElementById('stripeWidth'),
         crosshatchDensity: document.getElementById('crosshatchDensity'),
         ringSpacing: document.getElementById('ringSpacing'),
+        upperSquish: document.getElementById('upperSquish'),
+        lowerSquish: document.getElementById('lowerSquish'),
+        horizonStretch: document.getElementById('horizonStretch'),
     };
 
     // Update value displays
@@ -532,6 +627,16 @@
         config.stripeWidth = parseFloat(sliders.stripeWidth.value);
         config.crosshatchDensity = parseFloat(sliders.crosshatchDensity.value);
         config.ringSpacing = parseFloat(sliders.ringSpacing.value);
+        config.upperSquish = parseFloat(sliders.upperSquish.value);
+        config.lowerSquish = parseFloat(sliders.lowerSquish.value);
+        config.horizonStretch = parseFloat(sliders.horizonStretch.value);
+
+        // Update skybox shader uniforms
+        if (skyboxMaterial) {
+            skyboxMaterial.uniforms.upperSquish.value = config.upperSquish;
+            skyboxMaterial.uniforms.lowerSquish.value = config.lowerSquish;
+            skyboxMaterial.uniforms.horizonStretch.value = config.horizonStretch;
+        }
 
         createTerrain();
 
@@ -577,6 +682,9 @@
                 stripeWidth: config.stripeWidth,
                 crosshatchDensity: config.crosshatchDensity,
                 ringSpacing: config.ringSpacing,
+                upperSquish: config.upperSquish,
+                lowerSquish: config.lowerSquish,
+                horizonStretch: config.horizonStretch,
             }
         };
         const response = await fetch('/api/hole1/forest', {

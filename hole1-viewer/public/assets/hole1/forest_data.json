@@ -4022,9 +4022,12 @@
     "terrainSize": 512,
     "segments": 256,
     "heightScale": 15,
-    "treeWidth": 12,
+    "treeWidth": 14,
     "stripeWidth": 14,
     "crosshatchDensity": 9,
-    "ringSpacing": 3
+    "ringSpacing": 3,
+    "upperSquish": 0.5,
+    "lowerSquish": 0.4,
+    "horizonStretch": 1.2
   }
 }
