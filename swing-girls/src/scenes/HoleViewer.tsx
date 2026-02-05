@@ -1,23 +1,20 @@
 import { useState, useRef, useMemo } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { OrbitControls, useTexture, MeshDistortMaterial, MeshWobbleMaterial } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 // === SHADER FRAGMENTS ===
 
-// Helper to detect edges in texture (Surface Borders)
+// Robust edge detection with adjustable threshold
 const edgeDetection = `
-  float edgeFactor() {
-    vec2 size = vec2(512.0, 512.0); // Texture size
+  float edgeFactor(float threshold) {
+    vec2 size = vec2(512.0, 512.0);
     vec4 c = texture2D(uDetailMap, vUv);
     vec4 n = texture2D(uDetailMap, vUv + vec2(0.0, 1.0)/size);
     vec4 e = texture2D(uDetailMap, vUv + vec2(1.0, 0.0)/size);
-    vec4 s = texture2D(uDetailMap, vUv + vec2(0.0, -1.0)/size);
-    vec4 w = texture2D(uDetailMap, vUv + vec2(-1.0, 0.0)/size);
     
-    // Check difference in color
-    float diff = length(c - n) + length(c - e) + length(c - s) + length(c - w);
-    return smoothstep(0.0, 0.1, diff);
+    float diff = length(c - n) + length(c - e);
+    return smoothstep(threshold, threshold + 0.1, diff);
   }
 `;
 
@@ -25,10 +22,8 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Geometry: High resolution for vertex displacement
+  // Geometry: High resolution
   const geometry = useMemo(() => new THREE.PlaneGeometry(300, 400, 512, 512), []);
-  // Point Geometry: Much higher density
-  const pointGeometry = useMemo(() => new THREE.PlaneGeometry(300, 400, 512, 512), []);
 
   useFrame((state) => {
     if (materialRef.current) {
@@ -38,33 +33,24 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
     }
   });
 
-  const commonProps = {
-    displacementMap: heightMap,
-    displacementScale: 50,
-  };
-
-  const uniforms = {
+  const uniforms = useMemo(() => ({
     uHeightMap: { value: heightMap },
     uDetailMap: { value: detailMap },
     uTime: { value: 0 }
-  };
+  }), [heightMap, detailMap]);
 
   // === POINTS VARIANTS ===
   if (mode.startsWith('Points')) {
     let vert = `
       uniform sampler2D uHeightMap;
-      uniform sampler2D uDetailMap;
-      uniform float uTime;
       varying float vH;
       varying vec2 vUv;
-      varying vec4 vSurface;
       
       void main() {
         vUv = uv;
-        vec4 hData = texture2D(uHeightMap, uv);
-        vSurface = texture2D(uDetailMap, uv);
-        vH = hData.r;
-        vec3 pos = position + normal * vH * 50.0;
+        float h = texture2D(uHeightMap, uv).r;
+        vH = h;
+        vec3 pos = position + normal * h * 50.0;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         gl_PointSize = 2.0;
       }
@@ -72,17 +58,12 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
     let frag = `
       varying float vH;
       varying vec2 vUv;
-      varying vec4 vSurface;
       uniform sampler2D uDetailMap;
-      uniform float uTime;
-      ${edgeDetection}
-
       void main() {
         gl_FragColor = vec4(1.0);
       }
     `;
 
-    // Modify shaders based on specific Points variant
     switch (mode) {
       case 'Points Base':
         frag = `
@@ -92,15 +73,15 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
           }
         `;
         break;
-      case 'Points Border': // Black line border
+      case 'Points Border':
         frag = `
           varying float vH;
           varying vec2 vUv;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            float edge = edgeFactor();
-            vec3 color = vec3(vH, 0.6, 1.0-vH); // Base gradient
+            float edge = edgeFactor(0.1);
+            vec3 color = vec3(vH, 0.6, 1.0-vH);
             if (edge > 0.5) color = vec3(0.0); // Black border
             gl_FragColor = vec4(color, 1.0);
           }
@@ -108,22 +89,24 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
         break;
       case 'Points Surface Color':
         frag = `
-          varying vec4 vSurface;
+          varying vec2 vUv;
+          uniform sampler2D uDetailMap;
           void main() {
-            gl_FragColor = vec4(vSurface.rgb, 1.0);
+            vec4 surface = texture2D(uDetailMap, vUv);
+            gl_FragColor = vec4(surface.rgb, 1.0);
           }
         `;
         break;
       case 'Points Neon Borders':
         frag = `
           varying vec2 vUv;
-          varying vec4 vSurface;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            float edge = edgeFactor();
-            vec3 base = vSurface.rgb * 0.2; // Dim base
-            vec3 border = vec3(0.0, 1.0, 1.0); // Cyan border
+            float edge = edgeFactor(0.15);
+            vec4 surface = texture2D(uDetailMap, vUv);
+            vec3 base = surface.rgb * 0.2; 
+            vec3 border = vec3(0.0, 1.0, 1.0);
             gl_FragColor = vec4(mix(base, border, edge), 1.0);
           }
         `;
@@ -135,36 +118,37 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
           varying vec2 vUv;
           void main() {
             vUv = uv;
-            vec4 hData = texture2D(uHeightMap, uv);
-            vH = hData.r;
-            vec3 pos = position + normal * vH * 50.0;
+            float h = texture2D(uHeightMap, uv).r;
+            vH = h;
+            vec3 pos = position + normal * h * 50.0;
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
             
-            // Size based on height (larger at peaks)
-            float dist = length(gl_Position.xyz);
-            gl_PointSize = (100.0 / dist) * (1.0 + vH * 5.0);
+            float dist = gl_Position.w;
+            gl_PointSize = (300.0 / dist) * (0.5 + h * 2.0);
           }
         `;
         frag = `
           varying float vH;
           void main() {
-            if (length(gl_PointCoord - 0.5) > 0.5) discard; // Circle points
+            vec2 c = gl_PointCoord - 0.5;
+            if (dot(c, c) > 0.25) discard;
             gl_FragColor = vec4(vH, vH, vH, 1.0);
           }
         `;
         break;
-       case 'Points Subdivide': // Fake subdivision by discarding non-border points
+       case 'Points Subdivide': 
         frag = `
           varying vec2 vUv;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            float edge = edgeFactor();
-            // Discard points not near edge
-            if (edge < 0.2 && mod(gl_FragCoord.x, 2.0) > 0.5) discard; 
-            
+            float edge = edgeFactor(0.1);
+            // If not edge, discard 75% of points for "low density" look
+            if (edge < 0.2) {
+               if (mod(gl_FragCoord.x + gl_FragCoord.y, 4.0) > 0.5) discard;
+            }
             vec3 color = vec3(0.5);
-            if (edge > 0.2) color = vec3(1.0, 0.0, 0.0); // Red dense border
+            if (edge > 0.2) color = vec3(1.0, 0.0, 0.0); // Solid red border
             gl_FragColor = vec4(color, 1.0);
           }
         `;
@@ -173,37 +157,30 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
          vert = `
           uniform sampler2D uHeightMap;
           uniform float uTime;
-          varying float vH;
           varying vec2 vUv;
           void main() {
             vUv = uv;
-            vec4 hData = texture2D(uHeightMap, uv);
-            vH = hData.r;
+            float h = texture2D(uHeightMap, uv).r * 50.0;
             
-            // Rain drop effect
+            // Rain effect
             float drop = fract(uv.y * 20.0 + uTime * 0.5);
-            float h = vH * 50.0;
-            
-            // Lift points slightly
-            vec3 pos = position + normal * (h + drop * 2.0);
+            vec3 pos = position + normal * (h + drop * 5.0);
             
             gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
             gl_PointSize = 2.0;
           }
          `;
          frag = `
-           void main() { gl_FragColor = vec4(0.5, 0.8, 1.0, 1.0); }
+           void main() { gl_FragColor = vec4(0.5, 0.8, 1.0, 0.8); }
          `;
          break;
        case 'Points Scan':
          frag = `
-          varying float vH;
           varying vec2 vUv;
           uniform float uTime;
           void main() {
              float scan = abs(sin(vUv.y * 10.0 - uTime));
-             float val = step(0.9, scan);
-             if (val < 0.1) discard;
+             if (scan < 0.9) discard;
              gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
           }
          `;
@@ -213,18 +190,13 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
             uniform sampler2D uHeightMap;
             uniform float uTime;
             varying float vH;
-            varying vec2 vUv;
             void main() {
-              vUv = uv;
-              vec4 hData = texture2D(uHeightMap, uv);
-              vH = hData.r;
+              float h = texture2D(uHeightMap, uv).r;
+              vH = h;
+              vec3 pos = position + normal * h * 50.0;
               
-              vec3 pos = position;
-              pos += normal * vH * 50.0;
-              
-              // Jitter x/z based on time
-              float jitter = sin(uTime * 50.0 + position.y) * 0.5;
-              if (vH > 0.8) pos.x += jitter;
+              float jitter = sin(uTime * 20.0 + pos.y) * 2.0;
+              if (h > 0.5) pos.x += jitter;
               
               gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
               gl_PointSize = 3.0;
@@ -237,8 +209,7 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
     }
 
     return (
-      <points rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-        <bufferGeometry attach="geometry" {...pointGeometry} />
+      <points rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]} geometry={geometry}>
         <shaderMaterial
           ref={materialRef}
           uniforms={uniforms}
@@ -250,7 +221,6 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
   }
 
   // === STANDARD VARIANTS ===
-  // Using ShaderMaterial to mimic Standard but add custom effects
   
   if (mode.startsWith('Standard')) {
     let vert = `
@@ -276,32 +246,25 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
 
     let frag = `
       varying vec2 vUv;
-      varying float vH;
       uniform sampler2D uDetailMap;
-      uniform float uTime;
-      ${edgeDetection}
-
       void main() {
-        vec4 surface = texture2D(uDetailMap, vUv);
-        gl_FragColor = surface;
+        gl_FragColor = texture2D(uDetailMap, vUv);
       }
     `;
 
     switch (mode) {
       case 'Standard Base':
-        // Default (already set above)
         break;
       case 'Standard Border':
         frag = `
           varying vec2 vUv;
-          varying float vH;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
             vec4 surface = texture2D(uDetailMap, vUv);
-            float edge = edgeFactor();
+            float edge = edgeFactor(0.1);
             vec3 color = surface.rgb;
-            if (edge > 0.3) color = vec3(0.0); // Thick black border
+            if (edge > 0.5) color = vec3(0.0); // Thick black border
             gl_FragColor = vec4(color, 1.0);
           }
         `;
@@ -309,47 +272,43 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
       case 'Standard Cell':
         frag = `
           varying vec2 vUv;
-          varying float vH;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            vec4 surface = texture2D(uDetailMap, vUv);
-            // Quantize colors
-            vec3 color = floor(surface.rgb * 4.0) / 4.0;
-            float edge = edgeFactor();
-            if (edge > 0.5) color *= 0.5; // Darken edges
+            vec3 color = texture2D(uDetailMap, vUv).rgb;
+            // Quantize
+            color = floor(color * 4.0) / 4.0;
+            float edge = edgeFactor(0.2);
+            if (edge > 0.5) color *= 0.5;
             gl_FragColor = vec4(color, 1.0);
           }
         `;
         break;
       case 'Standard Wire Border':
-        // Draws wireframe ONLY at borders
         frag = `
           varying vec2 vUv;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            float edge = edgeFactor();
-            if (edge < 0.2) discard; // Transparent except borders
-            gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Yellow wire borders
+            float edge = edgeFactor(0.15);
+            if (edge < 0.5) discard;
+            gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0);
           }
         `;
         break;
       case 'Standard Glass':
-        // Opaque borders, glass elsewhere
         frag = `
           varying vec2 vUv;
           uniform sampler2D uDetailMap;
           ${edgeDetection}
           void main() {
-            float edge = edgeFactor();
-            vec4 surface = texture2D(uDetailMap, vUv);
+            float edge = edgeFactor(0.2);
+            vec3 color = texture2D(uDetailMap, vUv).rgb;
             float alpha = 0.3;
-            if (edge > 0.4) alpha = 1.0;
-            gl_FragColor = vec4(surface.rgb, alpha);
+            if (edge > 0.5) { alpha = 1.0; color = vec3(1.0); }
+            gl_FragColor = vec4(color, alpha);
           }
         `;
-        // Needs transparent prop
         break;
       case 'Standard Topo':
         frag = `
@@ -357,48 +316,32 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
           varying float vH;
           uniform sampler2D uDetailMap;
           void main() {
-            vec4 surface = texture2D(uDetailMap, vUv);
-            float topo = step(0.9, fract(vH * 20.0));
-            vec3 color = mix(surface.rgb, vec3(1.0), topo);
-            gl_FragColor = vec4(color, 1.0);
+            vec3 color = texture2D(uDetailMap, vUv).rgb;
+            float topo = step(0.9, fract(vH * 30.0));
+            gl_FragColor = vec4(mix(color, vec3(1.0), topo), 1.0);
           }
         `;
         break;
       case 'Standard Grid':
         frag = `
           varying vec2 vUv;
-          varying float vH;
           uniform sampler2D uDetailMap;
           void main() {
-            vec4 surface = texture2D(uDetailMap, vUv);
+            vec3 color = texture2D(uDetailMap, vUv).rgb;
             float grid = step(0.98, fract(vUv.x * 20.0)) + step(0.98, fract(vUv.y * 20.0));
-            vec3 color = mix(surface.rgb, vec3(0.0), clamp(grid, 0.0, 1.0));
-            gl_FragColor = vec4(color, 1.0);
+            gl_FragColor = vec4(mix(color, vec3(0.0), clamp(grid, 0.0, 1.0)), 1.0);
           }
         `;
         break;
-      case 'Standard Patchwork':
-         // Overlay a fabric pattern
-         frag = `
-           varying vec2 vUv;
-           uniform sampler2D uDetailMap;
-           void main() {
-             vec4 surface = texture2D(uDetailMap, vUv);
-             float pattern = sin((vUv.x + vUv.y) * 200.0);
-             vec3 color = surface.rgb * (0.9 + 0.1 * pattern);
-             gl_FragColor = vec4(color, 1.0);
-           }
-         `;
-         break;
        case 'Standard Lidar':
          frag = `
            varying vec2 vUv;
            uniform sampler2D uDetailMap;
            ${edgeDetection}
            void main() {
-             float edge = edgeFactor();
-             vec3 color = vec3(0.0, 0.0, 0.1); // Dark bg
-             if (edge > 0.2) color = vec3(0.0, 1.0, 0.5); // Lidar edge
+             float edge = edgeFactor(0.1);
+             vec3 color = vec3(0.0, 0.0, 0.1);
+             if (edge > 0.3) color = vec3(0.0, 1.0, 0.0);
              gl_FragColor = vec4(color, 1.0);
            }
          `;
@@ -435,7 +378,7 @@ export function HoleViewer() {
     'Points Base', 'Points Border', 'Points Surface Color', 'Points Neon Borders', 
     'Points Height Size', 'Points Subdivide', 'Points Rain', 'Points Scan', 'Points Glitch',
     'Standard Base', 'Standard Border', 'Standard Cell', 'Standard Wire Border',
-    'Standard Glass', 'Standard Topo', 'Standard Grid', 'Standard Patchwork', 'Standard Lidar'
+    'Standard Glass', 'Standard Topo', 'Standard Grid', 'Standard Lidar'
   ];
 
   return (
