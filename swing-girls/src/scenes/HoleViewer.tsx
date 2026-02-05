@@ -3,12 +3,32 @@ import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, useTexture, MeshDistortMaterial, MeshWobbleMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
+// === SHADER FRAGMENTS ===
+
+// Helper to detect edges in texture (Surface Borders)
+const edgeDetection = `
+  float edgeFactor() {
+    vec2 size = vec2(512.0, 512.0); // Texture size
+    vec4 c = texture2D(uDetailMap, vUv);
+    vec4 n = texture2D(uDetailMap, vUv + vec2(0.0, 1.0)/size);
+    vec4 e = texture2D(uDetailMap, vUv + vec2(1.0, 0.0)/size);
+    vec4 s = texture2D(uDetailMap, vUv + vec2(0.0, -1.0)/size);
+    vec4 w = texture2D(uDetailMap, vUv + vec2(-1.0, 0.0)/size);
+    
+    // Check difference in color
+    float diff = length(c - n) + length(c - e) + length(c - s) + length(c - w);
+    return smoothstep(0.0, 0.1, diff);
+  }
+`;
+
 function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightMap: THREE.Texture, detailMap: THREE.Texture }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-  // Geometry: 300x400 size, 512 segs for detail
+  // Geometry: High resolution for vertex displacement
   const geometry = useMemo(() => new THREE.PlaneGeometry(300, 400, 512, 512), []);
+  // Point Geometry: Much higher density
+  const pointGeometry = useMemo(() => new THREE.PlaneGeometry(300, 400, 512, 512), []);
 
   useFrame((state) => {
     if (materialRef.current) {
@@ -23,575 +43,388 @@ function TerrainRenderer({ mode, heightMap, detailMap }: { mode: string, heightM
     displacementScale: 50,
   };
 
-  switch (mode) {
-    case 'Standard':
-      return <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}><meshStandardMaterial {...commonProps} map={detailMap} color="white" /></mesh>;
-    case 'Wireframe':
-      return <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}><meshBasicMaterial {...commonProps} color="#0f0" wireframe /></mesh>;
-    case 'Normal':
-      return <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}><meshNormalMaterial {...commonProps} /></mesh>;
-    case 'Distort':
-      return <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}><MeshDistortMaterial {...commonProps} color="#00ff00" speed={2} distort={0.4} /></mesh>;
-    case 'Wobble':
-      return <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}><MeshWobbleMaterial {...commonProps} color="#ff0000" factor={1} speed={1} /></mesh>;
-    
-    // CUSTOM SHADERS
-    case 'Topo':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying float vH;
-              void main() {
-                float lines = step(0.95, fract(vH * 30.0));
-                gl_FragColor = vec4(mix(vec3(0.0), vec3(1.0), lines), 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
+  const uniforms = {
+    uHeightMap: { value: heightMap },
+    uDetailMap: { value: detailMap },
+    uTime: { value: 0 }
+  };
 
-    case 'Plasma':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform float uTime;
-              void main() {
-                vec3 color = 0.5 + 0.5 * cos(uTime + vUv.xyx + vec3(0, 2, 4));
-                color *= vH;
-                gl_FragColor = vec4(color, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
+  // === POINTS VARIANTS ===
+  if (mode.startsWith('Points')) {
+    let vert = `
+      uniform sampler2D uHeightMap;
+      uniform sampler2D uDetailMap;
+      uniform float uTime;
+      varying float vH;
+      varying vec2 vUv;
+      varying vec4 vSurface;
       
-    case 'Cyber Grid':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            transparent
-            vertexShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              uniform float uTime;
-              void main() {
-                float grid = step(0.98, fract(vUv.x * 50.0)) + step(0.98, fract(vUv.y * 50.0));
-                float sweep = step(0.95, fract(vUv.y - uTime * 0.2));
-                vec3 color = vec3(0.0, 1.0, 1.0) * grid + vec3(1.0, 0.0, 1.0) * sweep;
-                gl_FragColor = vec4(color, max(grid, sweep));
-              }
-            `}
-          />
-        </mesh>
-      );
+      void main() {
+        vUv = uv;
+        vec4 hData = texture2D(uHeightMap, uv);
+        vSurface = texture2D(uDetailMap, uv);
+        vH = hData.r;
+        vec3 pos = position + normal * vH * 50.0;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+        gl_PointSize = 2.0;
+      }
+    `;
+    let frag = `
+      varying float vH;
+      varying vec2 vUv;
+      varying vec4 vSurface;
+      uniform sampler2D uDetailMap;
+      uniform float uTime;
+      ${edgeDetection}
 
-    case 'Points':
-       return (
-        <points rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <planeGeometry args={[300, 400, 200, 200]} />
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              uniform sampler2D uHeightMap;
-              varying float vH;
-              void main() {
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                gl_PointSize = 3.0;
-              }
-            `}
-            fragmentShader={`
-              varying float vH;
-              void main() {
-                gl_FragColor = vec4(vH, 0.5, 1.0-vH, 1.0);
-              }
-            `}
-          />
-        </points>
-      );
+      void main() {
+        gl_FragColor = vec4(1.0);
+      }
+    `;
 
-    case 'Glitch':
-       return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              uniform sampler2D uHeightMap;
-              uniform float uTime;
-              varying vec2 vUv;
+    // Modify shaders based on specific Points variant
+    switch (mode) {
+      case 'Points Base':
+        frag = `
+          varying float vH;
+          void main() {
+            gl_FragColor = vec4(vH, 0.5, 1.0-vH, 1.0);
+          }
+        `;
+        break;
+      case 'Points Border': // Black line border
+        frag = `
+          varying float vH;
+          varying vec2 vUv;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            float edge = edgeFactor();
+            vec3 color = vec3(vH, 0.6, 1.0-vH); // Base gradient
+            if (edge > 0.5) color = vec3(0.0); // Black border
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+      case 'Points Surface Color':
+        frag = `
+          varying vec4 vSurface;
+          void main() {
+            gl_FragColor = vec4(vSurface.rgb, 1.0);
+          }
+        `;
+        break;
+      case 'Points Neon Borders':
+        frag = `
+          varying vec2 vUv;
+          varying vec4 vSurface;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            float edge = edgeFactor();
+            vec3 base = vSurface.rgb * 0.2; // Dim base
+            vec3 border = vec3(0.0, 1.0, 1.0); // Cyan border
+            gl_FragColor = vec4(mix(base, border, edge), 1.0);
+          }
+        `;
+        break;
+      case 'Points Height Size':
+        vert = `
+          uniform sampler2D uHeightMap;
+          varying float vH;
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            vec4 hData = texture2D(uHeightMap, uv);
+            vH = hData.r;
+            vec3 pos = position + normal * vH * 50.0;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            
+            // Size based on height (larger at peaks)
+            float dist = length(gl_Position.xyz);
+            gl_PointSize = (100.0 / dist) * (1.0 + vH * 5.0);
+          }
+        `;
+        frag = `
+          varying float vH;
+          void main() {
+            if (length(gl_PointCoord - 0.5) > 0.5) discard; // Circle points
+            gl_FragColor = vec4(vH, vH, vH, 1.0);
+          }
+        `;
+        break;
+       case 'Points Subdivide': // Fake subdivision by discarding non-border points
+        frag = `
+          varying vec2 vUv;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            float edge = edgeFactor();
+            // Discard points not near edge
+            if (edge < 0.2 && mod(gl_FragCoord.x, 2.0) > 0.5) discard; 
+            
+            vec3 color = vec3(0.5);
+            if (edge > 0.2) color = vec3(1.0, 0.0, 0.0); // Red dense border
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+       case 'Points Rain':
+         vert = `
+          uniform sampler2D uHeightMap;
+          uniform float uTime;
+          varying float vH;
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            vec4 hData = texture2D(uHeightMap, uv);
+            vH = hData.r;
+            
+            // Rain drop effect
+            float drop = fract(uv.y * 20.0 + uTime * 0.5);
+            float h = vH * 50.0;
+            
+            // Lift points slightly
+            vec3 pos = position + normal * (h + drop * 2.0);
+            
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = 2.0;
+          }
+         `;
+         frag = `
+           void main() { gl_FragColor = vec4(0.5, 0.8, 1.0, 1.0); }
+         `;
+         break;
+       case 'Points Scan':
+         frag = `
+          varying float vH;
+          varying vec2 vUv;
+          uniform float uTime;
+          void main() {
+             float scan = abs(sin(vUv.y * 10.0 - uTime));
+             float val = step(0.9, scan);
+             if (val < 0.1) discard;
+             gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+          }
+         `;
+         break;
+        case 'Points Glitch':
+          vert = `
+            uniform sampler2D uHeightMap;
+            uniform float uTime;
+            varying float vH;
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              vec4 hData = texture2D(uHeightMap, uv);
+              vH = hData.r;
               
-              float random (vec2 st) {
-                  return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-              }
-
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                float h = hData.r;
-                
-                // Glitch displacement
-                float noise = random(vec2(uTime * 10.0, uv.y));
-                if (noise > 0.95) {
-                   h += random(uv) * 10.0;
-                }
-                
-                vec3 pos = position + normal * h * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              void main() {
-                gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-              }
-            `}
-            wireframe
-          />
-        </mesh>
-      );
-
-    case 'Rain':
-        return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying vec2 vUv;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                vec3 pos = position + normal * hData.r * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              uniform float uTime;
+              vec3 pos = position;
+              pos += normal * vH * 50.0;
               
-              float random (vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233)))*43758.5453123); }
+              // Jitter x/z based on time
+              float jitter = sin(uTime * 50.0 + position.y) * 0.5;
+              if (vH > 0.8) pos.x += jitter;
+              
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+              gl_PointSize = 3.0;
+            }
+          `;
+          frag = `
+            void main() { gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0); }
+          `;
+          break;
+    }
 
-              void main() {
-                vec2 st = vUv * vec2(50.0, 100.0); // Columns, Rows
-                vec2 ipos = floor(st);
-                float speed = random(vec2(ipos.x, 0.0));
-                float y = fract(st.y + uTime * speed + random(vec2(ipos.x, 1.0)));
-                float trail = smoothstep(0.0, 1.0, y);
-                
-                vec3 color = vec3(0.0, 1.0, 0.5) * trail;
-                if (y > 0.98) color = vec3(0.8, 1.0, 0.8);
-                
-                gl_FragColor = vec4(color, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-
-     case 'Thermal':
-        return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-            }}
-            vertexShader={`
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying float vH;
-              void main() {
-                // Simple heatmap: Blue -> Green -> Red
-                vec3 color;
-                if (vH < 0.5) {
-                   color = mix(vec3(0,0,1), vec3(0,1,0), vH * 2.0);
-                } else {
-                   color = mix(vec3(0,1,0), vec3(1,0,0), (vH - 0.5) * 2.0);
-                }
-                gl_FragColor = vec4(color, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-
-     case 'X-Ray':
-        return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            transparent
-            vertexShader={`
-              varying vec3 vNormal;
-              varying vec3 vViewPosition;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vec4 hData = texture2D(uHeightMap, uv);
-                vec3 pos = position + normal * hData.r * 50.0;
-                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                vViewPosition = -mvPosition.xyz;
-                vNormal = normalMatrix * normal;
-                gl_Position = projectionMatrix * mvPosition;
-              }
-            `}
-            fragmentShader={`
-              varying vec3 vNormal;
-              varying vec3 vViewPosition;
-              void main() {
-                vec3 normal = normalize(vNormal);
-                vec3 viewDir = normalize(vViewPosition);
-                float dotProduct = dot(normal, viewDir);
-                float rim = 1.0 - abs(dotProduct);
-                rim = pow(rim, 4.0); // Sharpen rim
-                gl_FragColor = vec4(0.0, 0.5, 1.0, rim);
-              }
-            `}
-          />
-        </mesh>
-      );
-      
-      case 'Minecraft':
-          return (
-          <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-            <shaderMaterial
-              ref={materialRef}
-              uniforms={{
-                uHeightMap: { value: heightMap },
-              }}
-              vertexShader={`
-                varying float vH;
-                uniform sampler2D uHeightMap;
-                void main() {
-                  vec4 hData = texture2D(uHeightMap, uv);
-                  // Snap height to steps
-                  float steps = 20.0;
-                  vH = floor(hData.r * steps) / steps;
-                  vec3 pos = position + normal * vH * 50.0;
-                  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-              `}
-              fragmentShader={`
-                varying float vH;
-                void main() {
-                  // Banded color
-                  float steps = 10.0;
-                  float band = floor(vH * steps) / steps;
-                  gl_FragColor = vec4(band, band * 0.8, 0.2, 1.0);
-                }
-              `}
-            />
-          </mesh>
-        );
-        
-    case 'Liquid Metal':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying vec2 vUv;
-              varying vec3 vNormal;
-              varying vec3 vViewPosition;
-              uniform sampler2D uHeightMap;
-              uniform float uTime;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                
-                // Add ripple
-                float ripple = sin(length(uv - 0.5) * 50.0 - uTime * 2.0) * 0.5;
-                float h = hData.r * 50.0 + ripple;
-                
-                vec3 pos = position + normal * h;
-                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                vViewPosition = -mvPosition.xyz;
-                vNormal = normalMatrix * normal;
-                gl_Position = projectionMatrix * mvPosition;
-              }
-            `}
-            fragmentShader={`
-              varying vec3 vNormal;
-              varying vec3 vViewPosition;
-              void main() {
-                vec3 normal = normalize(vNormal);
-                vec3 viewDir = normalize(vViewPosition);
-                // Fake reflection
-                vec3 ref = reflect(-viewDir, normal);
-                float spec = pow(max(dot(ref, vec3(0,1,0)), 0.0), 30.0);
-                
-                vec3 chrome = vec3(0.8, 0.9, 1.0) * (0.5 + 0.5 * ref.y);
-                gl_FragColor = vec4(chrome + spec, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-
-    case 'Sonar':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            transparent
-            vertexShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                vH = hData.r;
-                vec3 pos = position + normal * vH * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform float uTime;
-              void main() {
-                // Circular pulse from center
-                float dist = length(vUv - 0.5);
-                float pulse = fract(dist * 5.0 - uTime * 0.5);
-                float ring = smoothstep(0.9, 0.95, pulse);
-                
-                // Grid overlay
-                float grid = step(0.98, fract(vUv.x * 50.0)) + step(0.98, fract(vUv.y * 50.0));
-                
-                vec3 color = vec3(0.0, 1.0, 0.2); // Radar Green
-                float alpha = (ring + grid * 0.2) * (1.0 - dist); // Fade at edges
-                
-                gl_FragColor = vec4(color, alpha);
-              }
-            `}
-          />
-        </mesh>
-      );
-      
-    case 'Neon City':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vec4 hData = texture2D(uHeightMap, uv);
-                // Step height to create buildings
-                float steps = 50.0; // Building grid resolution
-                vec2 gridUV = floor(uv * steps) / steps;
-                float h = texture2D(uHeightMap, gridUV).r;
-                
-                // Extrude only high areas
-                if(h < 0.2) h = 0.0;
-                else h = h * 1.5; // Taller buildings
-                
-                vH = h;
-                vec3 pos = position + normal * h * 50.0;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform float uTime;
-              void main() {
-                // Windows pattern
-                float windows = step(0.7, fract(vUv.y * 200.0)) * step(0.7, fract(vUv.x * 200.0));
-                // Neon glow at base
-                vec3 baseColor = vec3(0.5, 0.0, 0.5);
-                vec3 topColor = vec3(0.0, 0.5, 1.0);
-                
-                vec3 color = mix(baseColor, topColor, vH);
-                if (vH > 0.01 && windows > 0.5) color += vec3(1.0, 1.0, 0.8); // Lit windows
-                
-                gl_FragColor = vec4(color, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-      
-    case 'Paper':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-            }}
-            vertexShader={`
-              varying vec3 vPos;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vec4 hData = texture2D(uHeightMap, uv);
-                vec3 pos = position + normal * hData.r * 50.0;
-                vPos = pos;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec3 vPos;
-              void main() {
-                // Calculate facet normal using derivatives
-                vec3 dx = dFdx(vPos);
-                vec3 dy = dFdy(vPos);
-                vec3 N = normalize(cross(dx, dy));
-                
-                // Simple lighting
-                vec3 L = normalize(vec3(1.0, 1.0, 0.5));
-                float diff = max(dot(N, L), 0.0);
-                
-                vec3 paperColor = vec3(0.95, 0.95, 0.9);
-                gl_FragColor = vec4(paperColor * (0.5 + 0.5 * diff), 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-
-    case 'ASCII':
-      return (
-        <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
-          <shaderMaterial
-            ref={materialRef}
-            uniforms={{
-              uHeightMap: { value: heightMap },
-              uTime: { value: 0 }
-            }}
-            vertexShader={`
-              varying vec2 vUv;
-              varying float vH;
-              uniform sampler2D uHeightMap;
-              void main() {
-                vUv = uv;
-                vH = texture2D(uHeightMap, uv).r;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-              }
-            `}
-            fragmentShader={`
-              varying vec2 vUv;
-              varying float vH;
-              void main() {
-                // Pixelate UVs
-                float pixels = 80.0;
-                vec2 pUv = floor(vUv * pixels) / pixels;
-                float val = texture2D(uHeightMap, pUv).r;
-                
-                // Simulate characters (circles/dots of different sizes)
-                vec2 cell = fract(vUv * pixels); // 0-1 within cell
-                float dist = length(cell - 0.5);
-                float char = step(dist, val * 0.4); // Radius depends on height
-                
-                gl_FragColor = vec4(vec3(0.0, 1.0, 0.0) * char, 1.0);
-              }
-            `}
-          />
-        </mesh>
-      );
-
-    default:
-      return null;
+    return (
+      <points rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+        <bufferGeometry attach="geometry" {...pointGeometry} />
+        <shaderMaterial
+          ref={materialRef}
+          uniforms={uniforms}
+          vertexShader={vert}
+          fragmentShader={frag}
+        />
+      </points>
+    );
   }
+
+  // === STANDARD VARIANTS ===
+  // Using ShaderMaterial to mimic Standard but add custom effects
+  
+  if (mode.startsWith('Standard')) {
+    let vert = `
+      varying vec2 vUv;
+      varying float vH;
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      uniform sampler2D uHeightMap;
+      
+      void main() {
+        vUv = uv;
+        vec4 hData = texture2D(uHeightMap, uv);
+        vH = hData.r;
+        
+        vec3 pos = position + normal * vH * 50.0;
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        vNormal = normalMatrix * normal;
+        
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    let frag = `
+      varying vec2 vUv;
+      varying float vH;
+      uniform sampler2D uDetailMap;
+      uniform float uTime;
+      ${edgeDetection}
+
+      void main() {
+        vec4 surface = texture2D(uDetailMap, vUv);
+        gl_FragColor = surface;
+      }
+    `;
+
+    switch (mode) {
+      case 'Standard Base':
+        // Default (already set above)
+        break;
+      case 'Standard Border':
+        frag = `
+          varying vec2 vUv;
+          varying float vH;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            vec4 surface = texture2D(uDetailMap, vUv);
+            float edge = edgeFactor();
+            vec3 color = surface.rgb;
+            if (edge > 0.3) color = vec3(0.0); // Thick black border
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+      case 'Standard Cell':
+        frag = `
+          varying vec2 vUv;
+          varying float vH;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            vec4 surface = texture2D(uDetailMap, vUv);
+            // Quantize colors
+            vec3 color = floor(surface.rgb * 4.0) / 4.0;
+            float edge = edgeFactor();
+            if (edge > 0.5) color *= 0.5; // Darken edges
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+      case 'Standard Wire Border':
+        // Draws wireframe ONLY at borders
+        frag = `
+          varying vec2 vUv;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            float edge = edgeFactor();
+            if (edge < 0.2) discard; // Transparent except borders
+            gl_FragColor = vec4(1.0, 1.0, 0.0, 1.0); // Yellow wire borders
+          }
+        `;
+        break;
+      case 'Standard Glass':
+        // Opaque borders, glass elsewhere
+        frag = `
+          varying vec2 vUv;
+          uniform sampler2D uDetailMap;
+          ${edgeDetection}
+          void main() {
+            float edge = edgeFactor();
+            vec4 surface = texture2D(uDetailMap, vUv);
+            float alpha = 0.3;
+            if (edge > 0.4) alpha = 1.0;
+            gl_FragColor = vec4(surface.rgb, alpha);
+          }
+        `;
+        // Needs transparent prop
+        break;
+      case 'Standard Topo':
+        frag = `
+          varying vec2 vUv;
+          varying float vH;
+          uniform sampler2D uDetailMap;
+          void main() {
+            vec4 surface = texture2D(uDetailMap, vUv);
+            float topo = step(0.9, fract(vH * 20.0));
+            vec3 color = mix(surface.rgb, vec3(1.0), topo);
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+      case 'Standard Grid':
+        frag = `
+          varying vec2 vUv;
+          varying float vH;
+          uniform sampler2D uDetailMap;
+          void main() {
+            vec4 surface = texture2D(uDetailMap, vUv);
+            float grid = step(0.98, fract(vUv.x * 20.0)) + step(0.98, fract(vUv.y * 20.0));
+            vec3 color = mix(surface.rgb, vec3(0.0), clamp(grid, 0.0, 1.0));
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `;
+        break;
+      case 'Standard Patchwork':
+         // Overlay a fabric pattern
+         frag = `
+           varying vec2 vUv;
+           uniform sampler2D uDetailMap;
+           void main() {
+             vec4 surface = texture2D(uDetailMap, vUv);
+             float pattern = sin((vUv.x + vUv.y) * 200.0);
+             vec3 color = surface.rgb * (0.9 + 0.1 * pattern);
+             gl_FragColor = vec4(color, 1.0);
+           }
+         `;
+         break;
+       case 'Standard Lidar':
+         frag = `
+           varying vec2 vUv;
+           uniform sampler2D uDetailMap;
+           ${edgeDetection}
+           void main() {
+             float edge = edgeFactor();
+             vec3 color = vec3(0.0, 0.0, 0.1); // Dark bg
+             if (edge > 0.2) color = vec3(0.0, 1.0, 0.5); // Lidar edge
+             gl_FragColor = vec4(color, 1.0);
+           }
+         `;
+         break;
+    }
+
+    return (
+      <mesh geometry={geometry} rotation={[-Math.PI/2, 0, 0]} position={[0, -10, 0]}>
+        <shaderMaterial
+          ref={materialRef}
+          uniforms={uniforms}
+          vertexShader={vert}
+          fragmentShader={frag}
+          transparent={mode === 'Standard Glass' || mode === 'Standard Wire Border'}
+        />
+      </mesh>
+    );
+  }
+
+  return null;
 }
 
 // === MAIN VIEWER ===
 
 export function HoleViewer() {
-  const [mode, setMode] = useState('Standard');
+  const [mode, setMode] = useState('Points Base');
   
   const [heightMap, detailMap] = useLoader(THREE.TextureLoader, [
     '/hole1/hole1_height.png',
@@ -599,10 +432,10 @@ export function HoleViewer() {
   ]);
 
   const modes = [
-    'Standard', 'Wireframe', 'Normal', 'Distort', 'Wobble', 
-    'Topo', 'Plasma', 'Cyber Grid', 'Points', 'Glitch', 
-    'Rain', 'Thermal', 'X-Ray', 'Minecraft',
-    'Liquid Metal', 'Sonar', 'Neon City', 'Paper', 'ASCII'
+    'Points Base', 'Points Border', 'Points Surface Color', 'Points Neon Borders', 
+    'Points Height Size', 'Points Subdivide', 'Points Rain', 'Points Scan', 'Points Glitch',
+    'Standard Base', 'Standard Border', 'Standard Cell', 'Standard Wire Border',
+    'Standard Glass', 'Standard Topo', 'Standard Grid', 'Standard Patchwork', 'Standard Lidar'
   ];
 
   return (
@@ -611,7 +444,6 @@ export function HoleViewer() {
         <OrbitControls />
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 20, 10]} intensity={1} />
-        <pointLight position={[-10, 10, -10]} color="blue" intensity={2} />
         
         <TerrainRenderer mode={mode} heightMap={heightMap} detailMap={detailMap} />
       </Canvas>
