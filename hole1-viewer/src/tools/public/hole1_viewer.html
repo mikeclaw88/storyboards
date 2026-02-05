@@ -57,6 +57,12 @@
     <input type="range" id="heightScale" min="0" max="150" step="5" value="50">
     <label>Tree Width <span class="value" id="val-treeWidth">10</span></label>
     <input type="range" id="treeWidth" min="5" max="30" step="1" value="10">
+    <label>Stripe Width <span class="value" id="val-stripeWidth">8</span></label>
+    <input type="range" id="stripeWidth" min="2" max="20" step="1" value="8">
+    <label>Crosshatch Density <span class="value" id="val-crosshatchDensity">12</span></label>
+    <input type="range" id="crosshatchDensity" min="4" max="30" step="1" value="12">
+    <label>Ring Spacing <span class="value" id="val-ringSpacing">3</span></label>
+    <input type="range" id="ringSpacing" min="1" max="10" step="0.5" value="3">
     <button id="applyBtn">Apply</button>
     <button id="saveBtn">Save Data</button>
     <button id="loadBtn">Load Data</button>
@@ -73,7 +79,114 @@
         segments: 256,
         heightScale: 50,
         treeWidth: 10,
+        stripeWidth: 8,
+        crosshatchDensity: 12,
+        ringSpacing: 3,
     };
+
+    // --- TERRAIN SHADER ---
+    const terrainVertexShader = `
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+
+        void main() {
+            vUv = uv;
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPos = worldPosition.xyz;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `;
+
+    const terrainFragmentShader = `
+        uniform sampler2D surfaceMap;
+        uniform vec2 teePos;
+        uniform vec2 holePos;
+        uniform float terrainSize;
+        uniform float stripeFreq;
+        uniform float crosshatchFreq;
+        uniform float ringFreq;
+
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+
+        // Cartoon green color palette
+        const vec3 fairwayLight = vec3(0.45, 0.75, 0.35);
+        const vec3 fairwayDark = vec3(0.35, 0.65, 0.28);
+        const vec3 roughLight = vec3(0.35, 0.55, 0.25);
+        const vec3 roughDark = vec3(0.28, 0.45, 0.20);
+        const vec3 greenLight = vec3(0.40, 0.70, 0.35);
+        const vec3 greenDark = vec3(0.32, 0.62, 0.28);
+        const vec3 teeColor = vec3(0.42, 0.72, 0.38);
+        const vec3 forestColor = vec3(0.20, 0.35, 0.15);
+        const vec3 sandLight = vec3(0.96, 0.87, 0.70);   // Light tan
+        const vec3 sandDark = vec3(0.85, 0.75, 0.55);    // Darker tan
+
+        bool isColorMatch(vec3 c1, vec3 c2, float tolerance) {
+            return distance(c1, c2) < tolerance;
+        }
+
+        void main() {
+            vec4 surfaceColor = texture2D(surfaceMap, vUv);
+            vec3 sc = surfaceColor.rgb;
+
+            vec3 color = forestColor; // default fallback
+
+            // Detect terrain type by color matching
+            bool isFairway = isColorMatch(sc, vec3(1.0, 1.0, 0.0), 0.2);       // Yellow
+            bool isRough = isColorMatch(sc, vec3(0.5, 0.5, 0.5), 0.2);          // Gray
+            bool isGreen = isColorMatch(sc, vec3(0.0, 1.0, 1.0), 0.2);          // Cyan
+            bool isTee = isColorMatch(sc, vec3(1.0, 0.0, 1.0), 0.2);            // Magenta
+            bool isSand = isColorMatch(sc, vec3(0.0, 0.0, 1.0), 0.2);           // Blue
+
+            // World position for patterns (xz plane after rotation)
+            vec2 worldXZ = vWorldPos.xz;
+
+            if (isFairway) {
+                // Stripes aligned with tee->hole direction
+                vec2 teeWorld = (teePos - 0.5) * terrainSize;
+                vec2 holeWorld = (holePos - 0.5) * terrainSize;
+                vec2 dir = normalize(holeWorld - teeWorld);
+                vec2 perp = vec2(-dir.y, dir.x); // perpendicular to direction
+                float stripe = sin(dot(worldXZ, perp) * stripeFreq);
+                color = mix(fairwayDark, fairwayLight, step(0.0, stripe));
+            }
+            else if (isRough) {
+                // Crosshatch pattern
+                float hatch1 = sin((worldXZ.x + worldXZ.y) * crosshatchFreq);
+                float hatch2 = sin((worldXZ.x - worldXZ.y) * crosshatchFreq);
+                float pattern = hatch1 * hatch2;
+                color = mix(roughDark, roughLight, step(0.0, pattern));
+            }
+            else if (isGreen) {
+                // Concentric rings from hole
+                vec2 holeWorld = (holePos - 0.5) * terrainSize;
+                float dist = distance(worldXZ, holeWorld);
+                float ring = sin(dist * ringFreq);
+                color = mix(greenDark, greenLight, step(0.0, ring));
+            }
+            else if (isTee) {
+                // Solid tee color with subtle stripe aligned to fairway
+                vec2 teeWorld = (teePos - 0.5) * terrainSize;
+                vec2 holeWorld = (holePos - 0.5) * terrainSize;
+                vec2 dir = normalize(holeWorld - teeWorld);
+                vec2 perp = vec2(-dir.y, dir.x);
+                float stripe = sin(dot(worldXZ, perp) * stripeFreq * 2.0);
+                color = mix(teeColor * 0.95, teeColor, step(0.0, stripe));
+            }
+            else if (isSand) {
+                // Sand bunker with subtle wavy pattern
+                float wave1 = sin(worldXZ.x * 0.8 + worldXZ.y * 0.3);
+                float wave2 = sin(worldXZ.x * 0.3 - worldXZ.y * 0.8);
+                float pattern = wave1 * wave2;
+                color = mix(sandDark, sandLight, smoothstep(-0.5, 0.5, pattern));
+            }
+
+            gl_FragColor = vec4(color, 1.0);
+        }
+    `;
+
+    // Terrain material reference for uniform updates
+    let terrainMaterial = null;
 
     const ASSETS_PATH = '/assets/hole1';
     const CUBEMAP_PATH = '/assets/nycriver';
@@ -184,11 +297,21 @@
         pos.needsUpdate = true;
         geometry.computeVertexNormals();
 
-        const material = new THREE.MeshBasicMaterial({
-            map: surfaceMap,
+        terrainMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                surfaceMap: { value: surfaceMap },
+                teePos: { value: new THREE.Vector2(0.5, 0.5) },
+                holePos: { value: new THREE.Vector2(0.5, 0.5) },
+                terrainSize: { value: config.terrainSize },
+                stripeFreq: { value: 2.0 * Math.PI / config.stripeWidth },
+                crosshatchFreq: { value: 2.0 * Math.PI / config.crosshatchDensity },
+                ringFreq: { value: 2.0 * Math.PI / config.ringSpacing },
+            },
+            vertexShader: terrainVertexShader,
+            fragmentShader: terrainFragmentShader,
         });
 
-        terrain = new THREE.Mesh(geometry, material);
+        terrain = new THREE.Mesh(geometry, terrainMaterial);
         terrain.rotation.x = -Math.PI / 2;
         terrain.position.y = 0;
         scene.add(terrain);
@@ -220,10 +343,64 @@
 
     async function loadForestData() {
         await loadHeightData();
-        createTerrain();
 
         const response = await fetch('/api/hole1/forest');
         forestData = await response.json();
+
+        // Restore config values if they exist in the saved data
+        if (forestData.config) {
+            config.terrainSize = forestData.config.terrainSize ?? config.terrainSize;
+            config.segments = forestData.config.segments ?? config.segments;
+            config.heightScale = forestData.config.heightScale ?? config.heightScale;
+            config.treeWidth = forestData.config.treeWidth ?? config.treeWidth;
+            config.stripeWidth = forestData.config.stripeWidth ?? config.stripeWidth;
+            config.crosshatchDensity = forestData.config.crosshatchDensity ?? config.crosshatchDensity;
+            config.ringSpacing = forestData.config.ringSpacing ?? config.ringSpacing;
+
+            // Update slider values and displays
+            sliders.terrainSize.value = config.terrainSize;
+            sliders.segments.value = config.segments;
+            sliders.heightScale.value = config.heightScale;
+            sliders.treeWidth.value = config.treeWidth;
+            sliders.stripeWidth.value = config.stripeWidth;
+            sliders.crosshatchDensity.value = config.crosshatchDensity;
+            sliders.ringSpacing.value = config.ringSpacing;
+
+            document.getElementById('val-terrainSize').textContent = config.terrainSize;
+            document.getElementById('val-segments').textContent = config.segments;
+            document.getElementById('val-heightScale').textContent = config.heightScale;
+            document.getElementById('val-treeWidth').textContent = config.treeWidth;
+            document.getElementById('val-stripeWidth').textContent = config.stripeWidth;
+            document.getElementById('val-crosshatchDensity').textContent = config.crosshatchDensity;
+            document.getElementById('val-ringSpacing').textContent = config.ringSpacing;
+        }
+
+        createTerrain();
+
+        // Update shader uniforms with tee/hole positions
+        if (terrainMaterial && forestData) {
+            const imgWidth = forestData.width;
+            const imgHeight = forestData.height;
+
+            if (forestData.tee) {
+                // Convert pixel coords to UV (0-1)
+                const teeU = forestData.tee.x / imgWidth;
+                const teeV = 1.0 - (forestData.tee.y / imgHeight); // flip Y
+                terrainMaterial.uniforms.teePos.value.set(teeU, teeV);
+            }
+
+            if (forestData.hole) {
+                const holeU = forestData.hole.x / imgWidth;
+                const holeV = 1.0 - (forestData.hole.y / imgHeight); // flip Y
+                terrainMaterial.uniforms.holePos.value.set(holeU, holeV);
+            }
+
+            // Apply shader pattern uniforms from config
+            terrainMaterial.uniforms.stripeFreq.value = 2.0 * Math.PI / config.stripeWidth;
+            terrainMaterial.uniforms.crosshatchFreq.value = 2.0 * Math.PI / config.crosshatchDensity;
+            terrainMaterial.uniforms.ringFreq.value = 2.0 * Math.PI / config.ringSpacing;
+        }
+
         rebuildTrees();
     }
 
@@ -334,6 +511,9 @@
         segments: document.getElementById('segments'),
         heightScale: document.getElementById('heightScale'),
         treeWidth: document.getElementById('treeWidth'),
+        stripeWidth: document.getElementById('stripeWidth'),
+        crosshatchDensity: document.getElementById('crosshatchDensity'),
+        ringSpacing: document.getElementById('ringSpacing'),
     };
 
     // Update value displays
@@ -349,18 +529,60 @@
         config.segments = parseInt(sliders.segments.value);
         config.heightScale = parseInt(sliders.heightScale.value);
         config.treeWidth = parseInt(sliders.treeWidth.value);
+        config.stripeWidth = parseFloat(sliders.stripeWidth.value);
+        config.crosshatchDensity = parseFloat(sliders.crosshatchDensity.value);
+        config.ringSpacing = parseFloat(sliders.ringSpacing.value);
 
         createTerrain();
+
+        // Update shader pattern uniforms
+        if (terrainMaterial) {
+            terrainMaterial.uniforms.stripeFreq.value = 2.0 * Math.PI / config.stripeWidth;
+            terrainMaterial.uniforms.crosshatchFreq.value = 2.0 * Math.PI / config.crosshatchDensity;
+            terrainMaterial.uniforms.ringFreq.value = 2.0 * Math.PI / config.ringSpacing;
+
+            // Re-apply tee/hole positions after terrain recreation
+            if (forestData) {
+                const imgWidth = forestData.width;
+                const imgHeight = forestData.height;
+                if (forestData.tee) {
+                    terrainMaterial.uniforms.teePos.value.set(
+                        forestData.tee.x / imgWidth,
+                        1.0 - (forestData.tee.y / imgHeight)
+                    );
+                }
+                if (forestData.hole) {
+                    terrainMaterial.uniforms.holePos.value.set(
+                        forestData.hole.x / imgWidth,
+                        1.0 - (forestData.hole.y / imgHeight)
+                    );
+                }
+            }
+        }
+
         rebuildTrees();
     });
 
     // Save button
     document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!forestData) return;
+        // Include config values in the saved data
+        const dataToSave = {
+            ...forestData,
+            config: {
+                terrainSize: config.terrainSize,
+                segments: config.segments,
+                heightScale: config.heightScale,
+                treeWidth: config.treeWidth,
+                stripeWidth: config.stripeWidth,
+                crosshatchDensity: config.crosshatchDensity,
+                ringSpacing: config.ringSpacing,
+            }
+        };
         const response = await fetch('/api/hole1/forest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(forestData),
+            body: JSON.stringify(dataToSave),
         });
         const result = await response.json();
         console.log('Save result:', result);

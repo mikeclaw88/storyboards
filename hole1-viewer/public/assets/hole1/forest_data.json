@@ -4017,5 +4017,14 @@
   "tee": {
     "x": 268,
     "y": 52
+  },
+  "config": {
+    "terrainSize": 512,
+    "segments": 256,
+    "heightScale": 15,
+    "treeWidth": 12,
+    "stripeWidth": 14,
+    "crosshatchDensity": 9,
+    "ringSpacing": 3
   }
 }

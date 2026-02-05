@@ -104,8 +104,15 @@ app.get('/api/hole1/forest', (req, res) => {
     res.redirect('/api/holes/hole1/forest');
 });
 app.post('/api/hole1/forest', (req, res) => {
-    req.url = '/api/holes/hole1/forest';
-    app._router.handle(req, res);
+    try {
+        const dataPath = path.join(assetsPath, 'hole1', 'forest_data.json');
+        fs.writeFileSync(dataPath, JSON.stringify(req.body, null, 2));
+        console.log(`Saved forest data to ${dataPath}`);
+        res.json({ status: 'success', message: 'Forest data saved' });
+    } catch (err) {
+        console.error("Error saving forest data:", err);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
 });
 
 app.listen(PORT, () => {
