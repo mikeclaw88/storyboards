@@ -268,13 +268,14 @@ function App() {
   ];
 
   return (
-    <div className="w-full h-full bg-black relative">
-      <Canvas camera={{ position: [0, 100, 100], fov: 60 }}>
+    <div className="w-full h-full bg-black relative fixed inset-0">
+      <Canvas camera={{ position: [0, 100, 100], fov: 60 }} style={{ width: '100vw', height: '100vh' }}>
         <OrbitControls />
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 50, 10]} intensity={1.5} />
         
         <TerrainRenderer 
+           key={mode} // Force re-mount on mode change to fix inconsistent switching
            mode={mode} 
            heightMap={heightMap} 
            detailMap={detailMap} 
