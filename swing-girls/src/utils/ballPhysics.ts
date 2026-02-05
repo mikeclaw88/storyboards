@@ -52,6 +52,7 @@ export interface FlightState {
   bounceCount: number; // Number of bounces so far
   justBounced: boolean; // True if ball bounced this frame (for SFX trigger)
   impactSpeed: number; // Speed at impact (for volume calculation)
+  sidespin: number; // -1 to +1, lateral curve from draw/fade swing
 }
 
 /**
@@ -103,12 +104,24 @@ export function calculateInitialVelocity(
   return [vx, vy, vz];
 }
 
+// Sidespin lateral Magnus coefficient
+const SIDESPIN_COEFFICIENT = 0.10;
+
+// Sidespin decay rate (per second of flight time)
+const SIDESPIN_DECAY_RATE = 0.3;
+
 /**
  * Calculate aerodynamic forces on the golf ball
  * @param velocity - Current velocity [vx, vy, vz]
+ * @param sidespin - Lateral spin from -1 (draw) to +1 (fade), default 0
+ * @param flightTime - Time in flight (for spin decay), default 0
  * @returns acceleration from aerodynamic forces [ax, ay, az]
  */
-function calculateAerodynamicForces(velocity: [number, number, number]): [number, number, number] {
+function calculateAerodynamicForces(
+  velocity: [number, number, number],
+  sidespin: number = 0,
+  flightTime: number = 0
+): [number, number, number] {
   const [vx, vy, vz] = velocity;
   const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
@@ -134,7 +147,24 @@ function calculateAerodynamicForces(velocity: [number, number, number]): [number
   const liftFactor = horizontalSpeed / (speed + 0.1); // More lift when moving horizontally
   const liftAy = liftMagnitude * liftFactor;
 
-  return [dragAx, dragAy + liftAy, dragAz];
+  // Lateral Magnus force (sidespin → draw/fade curve)
+  // Perpendicular to horizontal velocity direction
+  let sideForceX = 0;
+  let sideForceZ = 0;
+  if (Math.abs(sidespin) > 0.01 && horizontalSpeed > 0.5) {
+    // Spin decays over flight time: strongest early, straightens out
+    const effectiveSpin = sidespin * Math.exp(-SIDESPIN_DECAY_RATE * flightTime);
+
+    // Perpendicular direction to horizontal velocity (rotate 90° in XZ plane)
+    const perpX = -vz / horizontalSpeed;
+    const perpZ = vx / horizontalSpeed;
+
+    const sideMagnitude = (0.5 * AIR_DENSITY * speed * speed * SIDESPIN_COEFFICIENT * BALL_AREA) / BALL_MASS;
+    sideForceX = perpX * sideMagnitude * effectiveSpin;
+    sideForceZ = perpZ * sideMagnitude * effectiveSpin;
+  }
+
+  return [dragAx + sideForceX, dragAy + liftAy, dragAz + sideForceZ];
 }
 
 /**
@@ -336,6 +366,7 @@ export function updateFlightPosition(
         bounceCount: state.bounceCount ?? 0,
         justBounced: false,
         impactSpeed: 0,
+        sidespin: 0,
       };
     }
 
@@ -371,6 +402,7 @@ export function updateFlightPosition(
         bounceCount: state.bounceCount ?? 0,
         justBounced: false,
         impactSpeed: 0,
+        sidespin: 0, // No sidespin after rolling
       };
     }
 
@@ -384,12 +416,13 @@ export function updateFlightPosition(
       bounceCount: state.bounceCount ?? 0,
       justBounced: false,
       impactSpeed: 0,
+      sidespin: 0, // No sidespin while rolling
     };
   }
 
   // Flying phase - full aerodynamics
-  // Calculate aerodynamic forces
-  const [aeroAx, aeroAy, aeroAz] = calculateAerodynamicForces(state.velocity);
+  // Calculate aerodynamic forces (with sidespin for lateral Magnus)
+  const [aeroAx, aeroAy, aeroAz] = calculateAerodynamicForces(state.velocity, state.sidespin, state.time);
 
   // Total acceleration (gravity + aerodynamics)
   const ax = aeroAx;
@@ -466,6 +499,7 @@ export function updateFlightPosition(
         bounceCount: (state.bounceCount ?? 0) + 1,
         justBounced: true,
         impactSpeed: normalSpeed,
+        sidespin: state.sidespin, // Preserve sidespin through bounces
       };
     } else {
       // Start rolling - project velocity onto terrain surface
@@ -483,6 +517,7 @@ export function updateFlightPosition(
         bounceCount: (state.bounceCount ?? 0) + 1,
         justBounced: true,
         impactSpeed: normalSpeed,
+        sidespin: 0, // No sidespin when transitioning to rolling
       };
     }
   }
@@ -496,6 +531,7 @@ export function updateFlightPosition(
     bounceCount: state.bounceCount ?? 0,
     justBounced: false,
     impactSpeed: 0,
+    sidespin: state.sidespin, // Preserve sidespin through flight
   };
 }
 
@@ -527,11 +563,13 @@ export function metersToYards(meters: number): number {
  * Create initial flight state
  * @param startPosition - Starting position
  * @param velocity - Initial velocity
+ * @param sidespin - Lateral spin from -1 (draw) to +1 (fade), default 0
  * @returns Initial flight state
  */
 export function createInitialFlightState(
   startPosition: [number, number, number],
-  velocity: [number, number, number]
+  velocity: [number, number, number],
+  sidespin: number = 0
 ): FlightState {
   return {
     position: [...startPosition],
@@ -542,5 +580,6 @@ export function createInitialFlightState(
     bounceCount: 0,
     justBounced: false,
     impactSpeed: 0,
+    sidespin,
   };
 }

@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Loader } from '@react-three/drei';
 import { PCFSoftShadowMap } from 'three';
@@ -14,10 +14,16 @@ import { DebugOverlay } from './components/DebugOverlay';
 import { LoadScreen } from './components/LoadScreen';
 import { GameHUD } from './components/GameHUD';
 import { GameEndModal } from './components/GameEndModal';
+import { initSurfaceMap } from './utils/surfaceDetection';
 
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
   const setArcPower = useGameStore((s) => s.setArcPower);
+
+  // Load surface map for terrain type detection
+  useEffect(() => {
+    initSurfaceMap();
+  }, []);
 
   return (
     <div className="w-full h-full relative">
