@@ -268,8 +268,8 @@ function App() {
   ];
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black">
-      <div className="absolute inset-0">
+    <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, overflow: 'hidden', background: 'black' }}>
+      <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
         <Canvas camera={{ position: [0, 100, 100], fov: 60 }}>
           <OrbitControls />
           <ambientLight intensity={0.5} />
