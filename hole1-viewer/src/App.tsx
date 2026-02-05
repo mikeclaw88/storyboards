@@ -268,22 +268,25 @@ function App() {
   ];
 
   return (
-    <div className="w-full h-full bg-black relative fixed inset-0">
-      <Canvas camera={{ position: [0, 100, 100], fov: 60 }} style={{ width: '100vw', height: '100vh' }}>
-        <OrbitControls />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 50, 10]} intensity={1.5} />
-        
-        <TerrainRenderer 
-           key={mode} // Force re-mount on mode change to fix inconsistent switching
-           mode={mode} 
-           heightMap={heightMap} 
-           detailMap={detailMap} 
-           heightScale={heightScale} 
-        />
-      </Canvas>
+    <div className="relative w-screen h-screen overflow-hidden bg-black">
+      <div className="absolute inset-0">
+        <Canvas camera={{ position: [0, 100, 100], fov: 60 }}>
+          <OrbitControls />
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 50, 10]} intensity={1.5} />
+          
+          <TerrainRenderer 
+             key={mode} 
+             mode={mode} 
+             heightMap={heightMap} 
+             detailMap={detailMap} 
+             heightScale={heightScale} 
+          />
+        </Canvas>
+      </div>
 
-      <div className="absolute top-4 right-4 bg-white/10 p-4 rounded backdrop-blur text-white max-h-[90vh] overflow-y-auto w-64 z-50">
+      {/* UI */}
+      <div className="absolute top-4 right-4 z-50 bg-white/10 p-4 rounded backdrop-blur text-white max-h-[90vh] overflow-y-auto w-64 pointer-events-auto">
         <h2 className="font-bold mb-4 border-b border-white/20 pb-2 text-center">STYLE SELECTOR</h2>
         
         <div className="mb-6">
