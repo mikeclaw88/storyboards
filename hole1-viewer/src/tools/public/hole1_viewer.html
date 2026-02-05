@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hole 1 Viewer</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #config {
+            display: none;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            min-width: 250px;
+        }
+        #config.visible { display: block; }
+        #config h3 { margin: 0 0 10px 0; color: #4CAF50; }
+        #config label { display: block; margin: 8px 0 4px 0; color: #aaa; }
+        #config input[type="range"] { width: 100%; }
+        #config .value { float: right; color: #4CAF50; }
+        #config button {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #4CAF50;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        #config button:hover { background: #45a049; }
+        #config .hint { color: #666; font-size: 10px; margin-top: 10px; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+<div id="config">
+    <h3>Terrain Config (~)</h3>
+    <label>Terrain Size <span class="value" id="val-terrainSize">512</span></label>
+    <input type="range" id="terrainSize" min="128" max="1024" step="64" value="512">
+    <label>Segments <span class="value" id="val-segments">256</span></label>
+    <input type="range" id="segments" min="32" max="512" step="32" value="256">
+    <label>Height Scale <span class="value" id="val-heightScale">50</span></label>
+    <input type="range" id="heightScale" min="0" max="150" step="5" value="50">
+    <label>Tree Width <span class="value" id="val-treeWidth">10</span></label>
+    <input type="range" id="treeWidth" min="5" max="30" step="1" value="10">
+    <button id="applyBtn">Apply</button>
+    <button id="saveBtn">Save Data</button>
+    <button id="loadBtn">Load Data</button>
+    <div class="hint">Press ~ to toggle this panel</div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- CONFIGURATION (editable via UI) ---
+    const config = {
+        terrainSize: 512,
+        segments: 256,
+        heightScale: 50,
+        treeWidth: 10,
+    };
+
+    const ASSETS_PATH = '/assets/hole1';
+    const CUBEMAP_PATH = '/assets/nycriver';
+
+    // --- SCENE SETUP ---
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    camera.position.set(0, 150, 300);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.sortObjects = true;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
+
+    // --- GROUPS ---
+    const forestGroup = new THREE.Group();
+    scene.add(forestGroup);
+
+    // --- LOADERS ---
+    const textureLoader = new THREE.TextureLoader();
+    const cubeTextureLoader = new THREE.CubeTextureLoader();
+
+    // --- LOAD CUBEMAP SKYBOX ---
+    const skybox = cubeTextureLoader
+        .setPath(CUBEMAP_PATH + '/')
+        .load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
+    scene.background = skybox;
+
+    // --- PRE-LOAD TREE TEXTURES ---
+    const treeTextures = [
+        textureLoader.load(`${ASSETS_PATH}/trees/1.png`),
+        textureLoader.load(`${ASSETS_PATH}/trees/2.png`),
+        textureLoader.load(`${ASSETS_PATH}/trees/3.png`),
+        textureLoader.load(`${ASSETS_PATH}/trees/4.png`),
+    ];
+
+    // --- LOAD TERRAIN TEXTURES ---
+    const surfaceMap = textureLoader.load(`${ASSETS_PATH}/surface.png`);
+    surfaceMap.colorSpace = THREE.SRGBColorSpace;
+
+    // --- HEIGHT DATA ---
+    let heightData = null;
+    let heightCanvas = null;
+    let heightWidth = 0;
+    let heightHeight = 0;
+
+    function loadHeightData() {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                heightCanvas = document.createElement('canvas');
+                heightCanvas.width = img.width;
+                heightCanvas.height = img.height;
+                heightWidth = img.width;
+                heightHeight = img.height;
+                const ctx = heightCanvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                heightData = ctx.getImageData(0, 0, img.width, img.height).data;
+                resolve();
+            };
+            img.src = `${ASSETS_PATH}/height.png`;
+        });
+    }
+
+    function sampleHeight(u, v) {
+        if (!heightData) return 0;
+        const px = Math.floor(u * heightWidth);
+        const py = Math.floor(v * heightHeight);
+        if (px < 0 || px >= heightWidth || py < 0 || py >= heightHeight) return 0;
+        const idx = (py * heightWidth + px) * 4;
+        return heightData[idx] / 255;
+    }
+
+    // --- TERRAIN ---
+    let terrain = null;
+
+    function createTerrain() {
+        if (terrain) {
+            scene.remove(terrain);
+            terrain.geometry.dispose();
+            terrain.material.dispose();
+        }
+
+        const geometry = new THREE.PlaneGeometry(
+            config.terrainSize,
+            config.terrainSize,
+            config.segments,
+            config.segments
+        );
+
+        // Bake height into geometry vertices
+        const pos = geometry.attributes.position;
+        const uv = geometry.attributes.uv;
+        for (let i = 0; i < pos.count; i++) {
+            const u = uv.getX(i);
+            const v = uv.getY(i);
+            const h = sampleHeight(u, 1 - v) * config.heightScale;
+            pos.setZ(i, h);
+        }
+        pos.needsUpdate = true;
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshBasicMaterial({
+            map: surfaceMap,
+        });
+
+        terrain = new THREE.Mesh(geometry, material);
+        terrain.rotation.x = -Math.PI / 2;
+        terrain.position.y = 0;
+        scene.add(terrain);
+    }
+
+    function getHeightAt(x, z) {
+        if (!heightData) return 0;
+
+        // Convert world coords to UV (0-1 range)
+        const u = (x / config.terrainSize + 0.5);
+        const v = (z / config.terrainSize + 0.5);
+
+        // Sample heightmap - terrain uses (1-v) in sampleHeight call,
+        // but rotation flips Z, so trees use v directly to match
+        const px = Math.floor(u * heightWidth);
+        const py = Math.floor(v * heightHeight);
+
+        if (px < 0 || px >= heightWidth || py < 0 || py >= heightHeight) {
+            return 0;
+        }
+
+        const idx = (py * heightWidth + px) * 4;
+        const heightValue = heightData[idx] / 255;
+        return heightValue * config.heightScale;
+    }
+
+    // --- FOREST DATA ---
+    let forestData = null;
+
+    async function loadForestData() {
+        await loadHeightData();
+        createTerrain();
+
+        const response = await fetch('/api/hole1/forest');
+        forestData = await response.json();
+        rebuildTrees();
+    }
+
+    function rebuildTrees() {
+        forestGroup.clear();
+        if (!forestData) return;
+
+        const cx = -forestData.width / 2;
+        const cz = -forestData.height / 2;
+
+        // --- TREES ---
+        const treeHeight = config.treeWidth * (832 / 588);
+        const planeGeo = new THREE.PlaneGeometry(config.treeWidth, treeHeight);
+
+        forestData.trees.forEach(t => {
+            const tex = treeTextures[Math.floor(Math.random() * treeTextures.length)];
+            const mat = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                alphaTest: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            });
+
+            const worldX = t.x + cx;
+            const worldZ = t.y + cz;
+            const groundY = getHeightAt(worldX, worldZ);
+
+            const mesh = new THREE.Mesh(planeGeo, mat);
+            mesh.position.set(worldX, groundY + treeHeight / 2, worldZ);
+            mesh.userData.isTree = true;
+            forestGroup.add(mesh);
+        });
+
+        // --- HOLE (cyan cylinder + flag) ---
+        if (forestData.hole) {
+            const holeX = forestData.hole.x + cx;
+            const holeZ = forestData.hole.y + cz;
+            const holeY = getHeightAt(holeX, holeZ);
+
+            // Hole cup (cylinder in ground)
+            const cupGeo = new THREE.CylinderGeometry(2, 2, 1, 16);
+            const cupMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const cup = new THREE.Mesh(cupGeo, cupMat);
+            cup.position.set(holeX, holeY - 0.5, holeZ);
+            forestGroup.add(cup);
+
+            // Flag pole
+            const poleGeo = new THREE.CylinderGeometry(0.2, 0.2, 15, 8);
+            const poleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pole = new THREE.Mesh(poleGeo, poleMat);
+            pole.position.set(holeX, holeY + 7.5, holeZ);
+            forestGroup.add(pole);
+
+            // Flag (triangle)
+            const flagShape = new THREE.Shape();
+            flagShape.moveTo(0, 0);
+            flagShape.lineTo(6, -2);
+            flagShape.lineTo(0, -4);
+            flagShape.lineTo(0, 0);
+            const flagGeo = new THREE.ShapeGeometry(flagShape);
+            const flagMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+            const flag = new THREE.Mesh(flagGeo, flagMat);
+            flag.position.set(holeX, holeY + 14, holeZ);
+            flag.rotation.y = Math.PI / 4;
+            forestGroup.add(flag);
+        }
+
+        // --- TEE (magenta platform + ball) ---
+        if (forestData.tee) {
+            const teeX = forestData.tee.x + cx;
+            const teeZ = forestData.tee.y + cz;
+            const teeY = getHeightAt(teeX, teeZ);
+
+            // Tee platform
+            const teeGeo = new THREE.BoxGeometry(8, 0.5, 4);
+            const teeMat = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+            const teeMesh = new THREE.Mesh(teeGeo, teeMat);
+            teeMesh.position.set(teeX, teeY + 0.25, teeZ);
+            forestGroup.add(teeMesh);
+
+            // Golf ball on tee
+            const ballGeo = new THREE.SphereGeometry(0.8, 16, 16);
+            const ballMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const ball = new THREE.Mesh(ballGeo, ballMat);
+            ball.position.set(teeX, teeY + 1.5, teeZ);
+            forestGroup.add(ball);
+
+            // Tee peg
+            const pegGeo = new THREE.CylinderGeometry(0.15, 0.3, 1, 8);
+            const pegMat = new THREE.MeshBasicMaterial({ color: 0xFFE4B5 });
+            const peg = new THREE.Mesh(pegGeo, pegMat);
+            peg.position.set(teeX, teeY + 0.75, teeZ);
+            forestGroup.add(peg);
+        }
+
+        console.log(`Loaded ${forestData.trees.length} trees` +
+            (forestData.hole ? `, hole at (${forestData.hole.x}, ${forestData.hole.y})` : '') +
+            (forestData.tee ? `, tee at (${forestData.tee.x}, ${forestData.tee.y})` : ''));
+    }
+
+    loadForestData();
+
+    // --- CONFIG UI ---
+    const configPanel = document.getElementById('config');
+    const sliders = {
+        terrainSize: document.getElementById('terrainSize'),
+        segments: document.getElementById('segments'),
+        heightScale: document.getElementById('heightScale'),
+        treeWidth: document.getElementById('treeWidth'),
+    };
+
+    // Update value displays
+    Object.keys(sliders).forEach(key => {
+        sliders[key].addEventListener('input', () => {
+            document.getElementById(`val-${key}`).textContent = sliders[key].value;
+        });
+    });
+
+    // Apply button
+    document.getElementById('applyBtn').addEventListener('click', () => {
+        config.terrainSize = parseInt(sliders.terrainSize.value);
+        config.segments = parseInt(sliders.segments.value);
+        config.heightScale = parseInt(sliders.heightScale.value);
+        config.treeWidth = parseInt(sliders.treeWidth.value);
+
+        createTerrain();
+        rebuildTrees();
+    });
+
+    // Save button
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+        if (!forestData) return;
+        const response = await fetch('/api/hole1/forest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(forestData),
+        });
+        const result = await response.json();
+        console.log('Save result:', result);
+        alert('Forest data saved!');
+    });
+
+    // Load button
+    document.getElementById('loadBtn').addEventListener('click', () => {
+        loadForestData();
+        alert('Forest data loaded!');
+    });
+
+    // Toggle with ~ key
+    window.addEventListener('keydown', (e) => {
+        if (e.key === '`' || e.key === '~') {
+            configPanel.classList.toggle('visible');
+        }
+    });
+
+    // --- ANIMATION LOOP ---
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        // Cylindrical billboard: trees face camera on XZ plane, Y stays locked
+        forestGroup.children.forEach(child => {
+            if (child.userData.isTree) {
+                const camXZ = new THREE.Vector3(
+                    camera.position.x,
+                    child.position.y,
+                    camera.position.z
+                );
+                child.lookAt(camXZ);
+            }
+        });
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- RESIZE HANDLER ---
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>

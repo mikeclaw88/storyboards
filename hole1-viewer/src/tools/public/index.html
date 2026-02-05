@@ -14,25 +14,30 @@
         .btn-blue:hover { background: #1e88e5; }
         .btn:disabled { background: #555; color: #888; cursor: not-allowed; }
         #status { font-family: monospace; color: #aaa; margin-left: 10px; }
+        select { padding: 10px; font-size: 16px; border-radius: 4px; background: #444; color: #fff; border: 1px solid #666; }
     </style>
 </head>
 <body>
 
     <h1>Forest Baker Tool</h1>
-    
+
     <div class="controls">
-        <button class="btn btn-green" onclick="runBake()">1. Run Bake</button>
-        <button class="btn btn-blue" onclick="saveToDisk()" id="saveBtn" disabled>2. Save JSON + TXT</button>
-        <span id="status">Loading image...</span>
+        <select id="holeSelect"></select>
+        <button class="btn btn-green" onclick="runBake()" id="bakeBtn" disabled>1. Run Bake</button>
+        <button class="btn btn-blue" onclick="saveToDisk()" id="saveBtn" disabled>2. Save to Hole</button>
+        <span id="status">Loading holes...</span>
     </div>
 
     <canvas id="displayCanvas"></canvas>
 
 <script>
     // --- CONFIGURATION ---
-    const TARGET_COLOR = { r: 0, g: 128, b: 0 }; 
+    const TARGET_COLOR = { r: 0, g: 128, b: 0 }; // Green for trees
+    const HOLE_COLOR = { r: 0, g: 255, b: 255 }; // Cyan for hole
+    const TEE_COLOR = { r: 255, g: 0, b: 255 };  // Magenta for tee
     const COLOR_TOLERANCE = 100;
-    const TREE_SPACING = 15; 
+    const MARKER_TOLERANCE = 50; // Tighter tolerance for hole/tee markers
+    const TREE_SPACING = 10;
     const LIP_SIMPLIFICATION = 4; 
 
     // --- GLOBALS ---
@@ -40,24 +45,69 @@
     const ctx = canvas.getContext('2d');
     const statusLabel = document.getElementById('status');
     const saveBtn = document.getElementById('saveBtn');
-    
+    const bakeBtn = document.getElementById('bakeBtn');
+    const holeSelect = document.getElementById('holeSelect');
+
     let sourceImage = new Image();
-    let bakedData = null; 
+    let bakedData = null;
+    let currentHole = null;
 
-    // Auto-load the image from the server
-    sourceImage.crossOrigin = "Anonymous";
-    sourceImage.src = 'hole1_surface.png'; 
-    
-    sourceImage.onload = () => {
-        statusLabel.innerText = "Image Loaded. Ready to Bake.";
-        canvas.width = sourceImage.width;
-        canvas.height = sourceImage.height;
-        ctx.drawImage(sourceImage, 0, 0);
-    };
+    // Load available holes from server
+    async function loadHoles() {
+        try {
+            const response = await fetch('/api/holes');
+            const holes = await response.json();
 
-    sourceImage.onerror = () => {
-        statusLabel.innerText = "Error: Could not find 'hole1_surface.png' in /public folder.";
-    };
+            holeSelect.innerHTML = '';
+            holes.forEach(hole => {
+                const opt = document.createElement('option');
+                opt.value = hole;
+                opt.textContent = hole;
+                holeSelect.appendChild(opt);
+            });
+
+            if (holes.length > 0) {
+                currentHole = holes[0];
+                loadHoleImage(currentHole);
+            } else {
+                statusLabel.innerText = "No holes found in /public/assets/";
+            }
+        } catch (err) {
+            statusLabel.innerText = "Error loading holes: " + err.message;
+        }
+    }
+
+    holeSelect.addEventListener('change', () => {
+        currentHole = holeSelect.value;
+        loadHoleImage(currentHole);
+        bakedData = null;
+        saveBtn.disabled = true;
+    });
+
+    function loadHoleImage(hole) {
+        statusLabel.innerText = `Loading ${hole}/surface.png...`;
+        bakeBtn.disabled = true;
+
+        sourceImage = new Image();
+        sourceImage.crossOrigin = "Anonymous";
+        sourceImage.src = `/assets/${hole}/surface.png`;
+
+        sourceImage.onload = () => {
+            statusLabel.innerText = `${hole} loaded. Ready to Bake.`;
+            canvas.width = sourceImage.width;
+            canvas.height = sourceImage.height;
+            ctx.drawImage(sourceImage, 0, 0);
+            bakeBtn.disabled = false;
+        };
+
+        sourceImage.onerror = () => {
+            statusLabel.innerText = `Error: Could not find '${hole}/surface.png'`;
+            bakeBtn.disabled = true;
+        };
+    }
+
+    // Initialize
+    loadHoles();
 
     // --- BAKING LOGIC ---
     function runBake() {
@@ -72,16 +122,44 @@
             const imgData = ctx.getImageData(0, 0, width, height);
             const pixels = imgData.data;
 
-            // 1. Build Grid
+            // 1. Build Grid + Find Hole/Tee pixels
             const grid = new Uint8Array(width * height);
+            const holePixels = [];
+            const teePixels = [];
+
             for (let i = 0; i < pixels.length; i += 4) {
-                const dist = Math.sqrt(
-                    (pixels[i] - TARGET_COLOR.r)**2 + 
-                    (pixels[i+1] - TARGET_COLOR.g)**2 + 
-                    (pixels[i+2] - TARGET_COLOR.b)**2
+                const r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+                const px = (i / 4) % width;
+                const py = Math.floor((i / 4) / width);
+
+                // Check for tree area (green)
+                const distGreen = Math.sqrt(
+                    (r - TARGET_COLOR.r)**2 +
+                    (g - TARGET_COLOR.g)**2 +
+                    (b - TARGET_COLOR.b)**2
                 );
-                if (dist < COLOR_TOLERANCE) grid[i / 4] = 1;
+                if (distGreen < COLOR_TOLERANCE) grid[i / 4] = 1;
+
+                // Check for hole (cyan)
+                const distCyan = Math.sqrt(
+                    (r - HOLE_COLOR.r)**2 +
+                    (g - HOLE_COLOR.g)**2 +
+                    (b - HOLE_COLOR.b)**2
+                );
+                if (distCyan < MARKER_TOLERANCE) holePixels.push({ x: px, y: py });
+
+                // Check for tee (magenta)
+                const distMagenta = Math.sqrt(
+                    (r - TEE_COLOR.r)**2 +
+                    (g - TEE_COLOR.g)**2 +
+                    (b - TEE_COLOR.b)**2
+                );
+                if (distMagenta < MARKER_TOLERANCE) teePixels.push({ x: px, y: py });
             }
+
+            // Compute centroids for hole and tee
+            const hole = computeCentroid(holePixels);
+            const tee = computeCentroid(teePixels);
 
             // 2. Generate Lip Verts
             const lipVertices = [];
@@ -118,16 +196,21 @@
             }
 
             // 4. Finish
-            bakedData = { 
+            bakedData = {
                 width: width,
                 height: height,
                 timestamp: Date.now(),
                 lipVertices: lipVertices,
-                trees: trees 
+                trees: trees,
+                hole: hole,
+                tee: tee
             };
 
-            drawResults(lipVertices, trees);
-            statusLabel.innerText = `Done! Trees: ${trees.length} | Lip Verts: ${lipVertices.length}`;
+            drawResults(lipVertices, trees, hole, tee);
+            let statusMsg = `Done! Trees: ${trees.length} | Lip Verts: ${lipVertices.length}`;
+            if (hole) statusMsg += ` | Hole: (${hole.x}, ${hole.y})`;
+            if (tee) statusMsg += ` | Tee: (${tee.x}, ${tee.y})`;
+            statusLabel.innerText = statusMsg;
             
             // ENABLE THE BLUE BUTTON
             saveBtn.disabled = false;
@@ -137,10 +220,10 @@
 
     // --- SERVER COMMUNICATION ---
     function saveToDisk() {
-        if(!bakedData) return;
-        statusLabel.innerText = "Saving to server...";
+        if (!bakedData || !currentHole) return;
+        statusLabel.innerText = `Saving to ${currentHole}...`;
 
-        fetch('/save-data', {
+        fetch(`/api/holes/${currentHole}/forest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(bakedData)
@@ -148,8 +231,8 @@
         .then(response => response.json())
         .then(data => {
             console.log(data);
-            statusLabel.innerText = "Saved! Check '/output' folder.";
-            alert("Files saved successfully to the /output folder!");
+            statusLabel.innerText = `Saved to /assets/${currentHole}/forest_data.json`;
+            alert(`Forest data saved to ${currentHole}!`);
         })
         .catch(error => {
             console.error('Error:', error);
@@ -167,7 +250,17 @@
         return (grid[up] === 0 || grid[down] === 0 || grid[left] === 0 || grid[right] === 0);
     }
 
-    function drawResults(lipVerts, trees) {
+    function computeCentroid(pixels) {
+        if (pixels.length === 0) return null;
+        let sumX = 0, sumY = 0;
+        pixels.forEach(p => { sumX += p.x; sumY += p.y; });
+        return {
+            x: Math.round(sumX / pixels.length),
+            y: Math.round(sumY / pixels.length)
+        };
+    }
+
+    function drawResults(lipVerts, trees, hole, tee) {
         ctx.fillStyle = "rgba(0,0,0,0.85)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -183,6 +276,27 @@
             ctx.beginPath(); ctx.arc(t.x, t.y, 4, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = "black"; ctx.stroke();
         });
+
+        // Draw Hole (cyan circle with flag)
+        if (hole) {
+            ctx.fillStyle = "#00FFFF";
+            ctx.beginPath(); ctx.arc(hole.x, hole.y, 8, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = "white";
+            ctx.font = "bold 12px sans-serif";
+            ctx.fillText("HOLE", hole.x + 12, hole.y + 4);
+        }
+
+        // Draw Tee (magenta rectangle)
+        if (tee) {
+            ctx.fillStyle = "#FF00FF";
+            ctx.fillRect(tee.x - 10, tee.y - 5, 20, 10);
+            ctx.strokeStyle = "white"; ctx.lineWidth = 2;
+            ctx.strokeRect(tee.x - 10, tee.y - 5, 20, 10);
+            ctx.fillStyle = "white";
+            ctx.font = "bold 12px sans-serif";
+            ctx.fillText("TEE", tee.x + 15, tee.y + 4);
+        }
     }
 </script>
 </body>

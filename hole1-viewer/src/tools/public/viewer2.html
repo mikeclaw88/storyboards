@@ -49,9 +49,20 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    renderer.sortObjects = true;
+
     const controls = new OrbitControls(camera, renderer.domElement);
-    
+
     const forestGroup = new THREE.Group();
+
+    // Pre-load the 4 tree textures
+    const textureLoader = new THREE.TextureLoader();
+    const treeTextures = [
+        textureLoader.load('/output/trees/1.png'),
+        textureLoader.load('/output/trees/2.png'),
+        textureLoader.load('/output/trees/3.png'),
+        textureLoader.load('/output/trees/4.png'),
+    ];
     scene.add(forestGroup);
 
     // --- 2. LOAD LOGIC ---
@@ -99,15 +110,23 @@
         const cx = -data.width / 2;
         const cz = -data.height / 2;
 
-        // A. Draw Trees (Simple Cubes)
-        const boxGeo = new THREE.BoxGeometry(5, 15, 5);
-        const boxMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-        
-        // Use a simple mesh for every tree (easiest way to debug)
-        // Note: For 10,000+ trees, we'd use InstancedMesh, but for <2000 this is fine and safer.
+        // A. Draw Trees (Textured billboard planes)
+        const treeWidth = 10;
+        const treeHeight = treeWidth * (832 / 588); // ~14.15, preserves aspect ratio
+        const planeGeo = new THREE.PlaneGeometry(treeWidth, treeHeight);
+
         data.trees.forEach(t => {
-            const mesh = new THREE.Mesh(boxGeo, boxMat);
-            mesh.position.set(t.x + cx, 7.5, t.y + cz);
+            const tex = treeTextures[Math.floor(Math.random() * treeTextures.length)];
+            const mat = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                alphaTest: 0.5,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+            });
+            const mesh = new THREE.Mesh(planeGeo, mat);
+            mesh.position.set(t.x + cx, treeHeight / 2, t.y + cz);
+            mesh.userData.isTree = true;
             forestGroup.add(mesh);
         });
 
@@ -129,6 +148,15 @@
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
+
+        // Cylindrical billboard: each tree faces camera on XZ plane, Y stays locked
+        forestGroup.children.forEach(child => {
+            if (child.userData.isTree) {
+                const camXZ = new THREE.Vector3(camera.position.x, child.position.y, camera.position.z);
+                child.lookAt(camXZ);
+            }
+        });
+
         renderer.render(scene, camera);
     }
     animate();

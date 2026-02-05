@@ -2,7 +2,6 @@ import { useState, useRef, useMemo, useCallback, useEffect, Fragment } from 'rea
 import { Canvas, useFrame, useLoader, useThree, createPortal } from '@react-three/fiber';
 import { OrbitControls, useFBO } from '@react-three/drei';
 import * as THREE from 'three';
-import { createSkymap } from './lib/skymap';
 import './App.css';
 
 // === SHADER FRAGMENTS ===
@@ -413,8 +412,10 @@ function CompositeRenderer({
   pointRadius,
   skyEnabled,
   skyWeight,
-  skyYOffset,
-  skyScale,
+  skySource,
+  skyBlurriness,
+  skyIntensity,
+  skyRotation,
 }: {
   layers: Record<string, LayerConfig>;
   heightMap: THREE.Texture;
@@ -423,8 +424,10 @@ function CompositeRenderer({
   pointRadius: number;
   skyEnabled: boolean;
   skyWeight: number;
-  skyYOffset: number;
-  skyScale: number;
+  skySource: string;
+  skyBlurriness: number;
+  skyIntensity: number;
+  skyRotation: number;
 }) {
   const { gl, camera } = useThree();
 
@@ -444,30 +447,32 @@ function CompositeRenderer({
   const fboSky = useFBO();
   const skymapScene = useMemo(() => new THREE.Scene(), []);
 
-  // Load cubemap and create skymap mesh
+  // Load cubemap as scene.background
   useEffect(() => {
     const loader = new THREE.CubeTextureLoader();
-    loader.setPath('/assets/mars/');
+    loader.setPath(`/assets/${skySource}/`);
     loader.load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg'], (cubeTexture) => {
-      const mesh = createSkymap(cubeTexture, 500);
-      skymapScene.add(mesh);
+      skymapScene.background = cubeTexture;
     });
     return () => {
-      while (skymapScene.children.length > 0) {
-        skymapScene.remove(skymapScene.children[0]);
+      if (skymapScene.background instanceof THREE.CubeTexture) {
+        skymapScene.background.dispose();
       }
+      skymapScene.background = null;
     };
-  }, [skymapScene]);
+  }, [skymapScene, skySource]);
 
   // Refs for sky props
   const skyEnabledRef = useRef(skyEnabled);
   skyEnabledRef.current = skyEnabled;
   const skyWeightRef = useRef(skyWeight);
   skyWeightRef.current = skyWeight;
-  const skyYOffsetRef = useRef(skyYOffset);
-  skyYOffsetRef.current = skyYOffset;
-  const skyScaleRef = useRef(skyScale);
-  skyScaleRef.current = skyScale;
+  const skyBlurrinessRef = useRef(skyBlurriness);
+  skyBlurrinessRef.current = skyBlurriness;
+  const skyIntensityRef = useRef(skyIntensity);
+  skyIntensityRef.current = skyIntensity;
+  const skyRotationRef = useRef(skyRotation);
+  skyRotationRef.current = skyRotation;
 
   // Orthographic camera for the compositing quad
   const orthoCamera = useMemo(() => {
@@ -530,10 +535,10 @@ function CompositeRenderer({
     gl.setRenderTarget(fboSky);
     gl.setClearColor(0x000000, 1);
     gl.clear();
-    if (skyEnabledRef.current && skymapScene.children.length > 0) {
-      const s = skyScaleRef.current / 500;
-      skymapScene.children[0].position.y = skyYOffsetRef.current;
-      skymapScene.children[0].scale.set(s, s, s);
+    if (skyEnabledRef.current && skymapScene.background) {
+      skymapScene.backgroundBlurriness = skyBlurrinessRef.current;
+      skymapScene.backgroundIntensity = skyIntensityRef.current;
+      skymapScene.backgroundRotation.set(0, skyRotationRef.current * Math.PI / 180, 0);
       gl.render(skymapScene, camera);
     }
 
@@ -592,8 +597,10 @@ function App() {
   const [pointRadius, setPointRadius] = useState(300);
   const [skyEnabled, setSkyEnabled] = useState(true);
   const [skyWeight, setSkyWeight] = useState(1.0);
-  const [skyYOffset, setSkyYOffset] = useState(0);
-  const [skyScale, setSkyScale] = useState(500);
+  const [skySource, setSkySource] = useState('mars');
+  const [skyBlurriness, setSkyBlurriness] = useState(0);
+  const [skyIntensity, setSkyIntensity] = useState(1.0);
+  const [skyRotation, setSkyRotation] = useState(0);
 
   const [heightMap, detailMap] = useLoader(THREE.TextureLoader, [
     '/assets/hole1_height.png',
@@ -630,8 +637,10 @@ function App() {
             pointRadius={pointRadius}
             skyEnabled={skyEnabled}
             skyWeight={skyWeight}
-            skyYOffset={skyYOffset}
-            skyScale={skyScale}
+            skySource={skySource}
+            skyBlurriness={skyBlurriness}
+            skyIntensity={skyIntensity}
+            skyRotation={skyRotation}
           />
         </Canvas>
       </div>
@@ -663,21 +672,41 @@ function App() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: skyEnabled ? 6 : 0 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: skyEnabled ? 'white' : '#9ca3af' }}>Sky</span>
-                <button
-                  onClick={() => setSkyEnabled(prev => !prev)}
-                  style={{
-                    padding: '2px 10px',
-                    fontSize: 11,
-                    fontWeight: 'bold',
-                    border: 'none',
-                    borderRadius: 3,
-                    cursor: 'pointer',
-                    background: skyEnabled ? '#ca8a04' : 'rgba(255,255,255,0.1)',
-                    color: skyEnabled ? 'white' : '#9ca3af',
-                  }}
-                >
-                  {skyEnabled ? 'ON' : 'OFF'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <select
+                    value={skySource}
+                    onChange={(e) => setSkySource(e.target.value)}
+                    style={{
+                      padding: '2px 4px',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      border: 'none',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                      background: 'rgba(255,255,255,0.15)',
+                      color: '#d1d5db',
+                      outline: 'none',
+                    }}
+                  >
+                    <option value="mars">Mars</option>
+                    <option value="nycriver">NYC River</option>
+                  </select>
+                  <button
+                    onClick={() => setSkyEnabled(prev => !prev)}
+                    style={{
+                      padding: '2px 10px',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      border: 'none',
+                      borderRadius: 3,
+                      cursor: 'pointer',
+                      background: skyEnabled ? '#ca8a04' : 'rgba(255,255,255,0.1)',
+                      color: skyEnabled ? 'white' : '#9ca3af',
+                    }}
+                  >
+                    {skyEnabled ? 'ON' : 'OFF'}
+                  </button>
+                </div>
               </div>
               {skyEnabled && (
                 <>
@@ -700,13 +729,13 @@ function App() {
                     </span>
                   </div>
                   <div style={{ marginTop: 4 }}>
-                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Y Offset</label>
+                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Intensity</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input
                         type="range"
-                        min="-200" max="200" step="1"
-                        value={skyYOffset}
-                        onChange={(e) => setSkyYOffset(Number(e.target.value))}
+                        min="0" max="3" step="0.05"
+                        value={skyIntensity}
+                        onChange={(e) => setSkyIntensity(Number(e.target.value))}
                         style={{ flex: 1 }}
                       />
                       <span style={{
@@ -716,18 +745,18 @@ function App() {
                         color: '#d1d5db',
                         fontFamily: 'monospace',
                       }}>
-                        {skyYOffset}
+                        {skyIntensity.toFixed(2)}
                       </span>
                     </div>
                   </div>
                   <div style={{ marginTop: 4 }}>
-                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Scale</label>
+                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Blurriness</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input
                         type="range"
-                        min="100" max="2000" step="10"
-                        value={skyScale}
-                        onChange={(e) => setSkyScale(Number(e.target.value))}
+                        min="0" max="1" step="0.01"
+                        value={skyBlurriness}
+                        onChange={(e) => setSkyBlurriness(Number(e.target.value))}
                         style={{ flex: 1 }}
                       />
                       <span style={{
@@ -737,7 +766,28 @@ function App() {
                         color: '#d1d5db',
                         fontFamily: 'monospace',
                       }}>
-                        {skyScale}
+                        {skyBlurriness.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Rotation</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="range"
+                        min="0" max="360" step="1"
+                        value={skyRotation}
+                        onChange={(e) => setSkyRotation(Number(e.target.value))}
+                        style={{ flex: 1 }}
+                      />
+                      <span style={{
+                        fontSize: 12,
+                        width: 32,
+                        textAlign: 'right',
+                        color: '#d1d5db',
+                        fontFamily: 'monospace',
+                      }}>
+                        {skyRotation}°
                       </span>
                     </div>
                   </div>
