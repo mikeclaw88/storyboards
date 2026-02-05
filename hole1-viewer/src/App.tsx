@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { useState, useRef, useMemo, useCallback, Fragment } from 'react';
+import { Canvas, useFrame, useLoader, useThree, createPortal } from '@react-three/fiber';
+import { OrbitControls, useFBO } from '@react-three/drei';
 import * as THREE from 'three';
 import './App.css';
 
@@ -23,7 +23,7 @@ const edgeFragment = `
   }
 `;
 
-function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: string, heightMap: THREE.Texture, detailMap: THREE.Texture, heightScale: number }) {
+function TerrainRenderer({ mode, heightMap, detailMap, heightScale, pointRadius }: { mode: string, heightMap: THREE.Texture, detailMap: THREE.Texture, heightScale: number, pointRadius: number }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Geometry: High resolution
@@ -37,6 +37,9 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
       if (materialRef.current.uniforms.uHeightScale) {
         materialRef.current.uniforms.uHeightScale.value = heightScale;
       }
+      if (materialRef.current.uniforms.uPointRadius) {
+        materialRef.current.uniforms.uPointRadius.value = pointRadius;
+      }
     }
   });
 
@@ -44,6 +47,7 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
     uHeightMap: { value: heightMap },
     uDetailMap: { value: detailMap },
     uHeightScale: { value: heightScale },
+    uPointRadius: { value: pointRadius },
     uTime: { value: 0 }
   }), [heightMap, detailMap]);
 
@@ -59,24 +63,80 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
       vUv = uv;
       float h = texture2D(uHeightMap, uv).r;
       vH = h;
-      
+
       float off = 1.0 / 512.0;
       float hL = texture2D(uHeightMap, uv + vec2(-off, 0)).r;
       float hR = texture2D(uHeightMap, uv + vec2(off, 0)).r;
       float hD = texture2D(uHeightMap, uv + vec2(0, -off)).r;
       float hU = texture2D(uHeightMap, uv + vec2(0, off)).r;
-      
+
       float scale = uHeightScale;
       vec3 n = normalize(vec3(hL - hR, 2.0 / scale, hD - hU));
       vNormal = normalMatrix * n;
 
       vec3 pos = position + vec3(0, 0, h * scale);
-      
+
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
       vViewPosition = -mvPosition.xyz;
       gl_Position = projectionMatrix * mvPosition;
-      
+
       gl_PointSize = (300.0 / length(mvPosition.xyz));
+    }
+  `;
+
+  const pointsVertex = `
+    uniform sampler2D uHeightMap;
+    uniform float uHeightScale;
+    uniform float uPointRadius;
+    varying vec2 vUv;
+    varying float vH;
+    varying vec3 vViewPosition;
+    varying vec3 vNormal;
+
+    float hash21(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    void main() {
+      vUv = uv;
+      float h = texture2D(uHeightMap, uv).r;
+      vH = h;
+
+      float off = 1.0 / 512.0;
+      float hL = texture2D(uHeightMap, uv + vec2(-off, 0)).r;
+      float hR = texture2D(uHeightMap, uv + vec2(off, 0)).r;
+      float hD = texture2D(uHeightMap, uv + vec2(0, -off)).r;
+      float hU = texture2D(uHeightMap, uv + vec2(0, off)).r;
+
+      float scale = uHeightScale;
+      vec3 n = normalize(vec3(hL - hR, 2.0 / scale, hD - hU));
+      vNormal = normalMatrix * n;
+
+      vec3 pos = position;
+
+      // Hex offset: shift odd rows by half column spacing
+      float colSpacing = 300.0 / 512.0;
+      float rowSpacing = 400.0 / 512.0;
+      float rowIndex = floor(uv.y * 512.0 + 0.5);
+      if (mod(rowIndex, 2.0) > 0.5) {
+        pos.x += colSpacing * 0.5;
+      }
+
+      // Small jitter to break residual hex pattern
+      float jitterStrength = 0.25;
+      pos.x += (hash21(uv * 512.0) - 0.5) * colSpacing * jitterStrength;
+      pos.y += (hash21(uv * 512.0 + vec2(7.0, 13.0)) - 0.5) * rowSpacing * jitterStrength;
+
+      // Apply height displacement
+      pos.z += h * scale;
+
+      vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+      vViewPosition = -mvPosition.xyz;
+      gl_Position = projectionMatrix * mvPosition;
+
+      gl_PointSize = (uPointRadius / length(mvPosition.xyz));
     }
   `;
 
@@ -86,7 +146,7 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
         <shaderMaterial
           ref={materialRef}
           uniforms={uniforms}
-          vertexShader={baseVertex}
+          vertexShader={pointsVertex}
           fragmentShader={`
             uniform sampler2D uDetailMap;
             varying vec2 vUv;
@@ -163,7 +223,7 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
             varying vec3 vViewPosition;
             ${diffuseLighting}
             ${edgeFragment}
-            
+
             void main() {
               vec3 color = texture2D(uDetailMap, vUv).rgb;
               float light = getDiffuse(vNormal);
@@ -172,11 +232,11 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
               vec3 viewDir = normalize(vViewPosition);
               float rim = 1.0 - max(dot(vNormal, viewDir), 0.0);
               rim = smoothstep(0.6, 1.0, rim);
-              
+
               vec3 finalColor = color * light;
               if (rim > 0.8) finalColor += vec3(0.2);
               if (edge > 0.5) finalColor = vec3(0.0);
-              
+
               gl_FragColor = vec4(finalColor, 1.0);
             }
           `}
@@ -197,7 +257,7 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
             varying vec2 vUv;
             varying vec3 vNormal;
             ${diffuseLighting}
-            
+
             void main() {
               vec3 color = texture2D(uDetailMap, vUv).rgb;
               float light = getDiffuse(vNormal);
@@ -226,7 +286,7 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
             varying vec2 vUv;
             varying vec3 vNormal;
             ${diffuseLighting}
-            
+
             void main() {
               float light = getDiffuse(vNormal);
               vec3 color = texture2D(uDetailMap, vUv).rgb;
@@ -249,75 +309,371 @@ function TerrainRenderer({ mode, heightMap, detailMap, heightScale }: { mode: st
   return null;
 }
 
+// === COMPOSITING SYSTEM ===
+
+type BlendMode = 'OFF' | 'ADD' | 'MULT';
+type LayerConfig = { blend: BlendMode; weight: number };
+
+const MODE_NAMES = [
+  'Standard Base',
+  'Points Colored',
+  'Toon Shaded',
+  'Anime Outline',
+  'Comic Halftone',
+  'Sketch',
+] as const;
+
+const defaultLayers: Record<string, LayerConfig> = {
+  'Standard Base':  { blend: 'ADD', weight: 1.0 },
+  'Points Colored': { blend: 'OFF', weight: 0.0 },
+  'Toon Shaded':    { blend: 'OFF', weight: 0.0 },
+  'Anime Outline':  { blend: 'OFF', weight: 0.0 },
+  'Comic Halftone': { blend: 'OFF', weight: 0.0 },
+  'Sketch':         { blend: 'OFF', weight: 0.0 },
+};
+
+// Compositing shader
+const compositeVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const compositeFragmentShader = `
+  uniform sampler2D uLayer0;
+  uniform sampler2D uLayer1;
+  uniform sampler2D uLayer2;
+  uniform sampler2D uLayer3;
+  uniform sampler2D uLayer4;
+  uniform sampler2D uLayer5;
+
+  // blend: 0 = OFF, 1 = ADD, 2 = MULT
+  uniform int uBlend0;
+  uniform int uBlend1;
+  uniform int uBlend2;
+  uniform int uBlend3;
+  uniform int uBlend4;
+  uniform int uBlend5;
+
+  uniform float uWeight0;
+  uniform float uWeight1;
+  uniform float uWeight2;
+  uniform float uWeight3;
+  uniform float uWeight4;
+  uniform float uWeight5;
+
+  varying vec2 vUv;
+
+  void applyLayer(inout vec3 result, sampler2D tex, int blend, float weight) {
+    if (blend == 0) return;
+    vec3 color = texture2D(tex, vUv).rgb;
+    if (blend == 1) {
+      result += color * weight;
+    } else if (blend == 2) {
+      result *= mix(vec3(1.0), color, weight);
+    }
+  }
+
+  void main() {
+    vec3 result = vec3(0.0);
+    applyLayer(result, uLayer0, uBlend0, uWeight0);
+    applyLayer(result, uLayer1, uBlend1, uWeight1);
+    applyLayer(result, uLayer2, uBlend2, uWeight2);
+    applyLayer(result, uLayer3, uBlend3, uWeight3);
+    applyLayer(result, uLayer4, uBlend4, uWeight4);
+    applyLayer(result, uLayer5, uBlend5, uWeight5);
+    gl_FragColor = vec4(result, 1.0);
+  }
+`;
+
+function blendToInt(b: BlendMode): number {
+  if (b === 'ADD') return 1;
+  if (b === 'MULT') return 2;
+  return 0;
+}
+
+function CompositeRenderer({
+  layers,
+  heightMap,
+  detailMap,
+  heightScale,
+  pointRadius,
+}: {
+  layers: Record<string, LayerConfig>;
+  heightMap: THREE.Texture;
+  detailMap: THREE.Texture;
+  heightScale: number;
+  pointRadius: number;
+}) {
+  const { gl, camera } = useThree();
+
+  // Create 6 separate scenes
+  const scenes = useMemo(() => MODE_NAMES.map(() => new THREE.Scene()), []);
+
+  // Create 6 FBOs
+  const fbo0 = useFBO({ depth: true });
+  const fbo1 = useFBO({ depth: true });
+  const fbo2 = useFBO({ depth: true });
+  const fbo3 = useFBO({ depth: true });
+  const fbo4 = useFBO({ depth: true });
+  const fbo5 = useFBO({ depth: true });
+  const fbos = useMemo(() => [fbo0, fbo1, fbo2, fbo3, fbo4, fbo5], [fbo0, fbo1, fbo2, fbo3, fbo4, fbo5]);
+
+  // Orthographic camera for the compositing quad
+  const orthoCamera = useMemo(() => {
+    const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    return cam;
+  }, []);
+
+  // Full-screen quad for compositing
+  const quadGeometry = useMemo(() => new THREE.PlaneGeometry(2, 2), []);
+
+  // Compositing material
+  const compositeMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        uLayer0: { value: null },
+        uLayer1: { value: null },
+        uLayer2: { value: null },
+        uLayer3: { value: null },
+        uLayer4: { value: null },
+        uLayer5: { value: null },
+        uBlend0: { value: 0 },
+        uBlend1: { value: 0 },
+        uBlend2: { value: 0 },
+        uBlend3: { value: 0 },
+        uBlend4: { value: 0 },
+        uBlend5: { value: 0 },
+        uWeight0: { value: 0 },
+        uWeight1: { value: 0 },
+        uWeight2: { value: 0 },
+        uWeight3: { value: 0 },
+        uWeight4: { value: 0 },
+        uWeight5: { value: 0 },
+      },
+      vertexShader: compositeVertexShader,
+      fragmentShader: compositeFragmentShader,
+      depthTest: false,
+      depthWrite: false,
+    });
+  }, []);
+
+  // Compositing scene
+  const compositeScene = useMemo(() => {
+    const scene = new THREE.Scene();
+    const mesh = new THREE.Mesh(quadGeometry, compositeMaterial);
+    scene.add(mesh);
+    return scene;
+  }, [quadGeometry, compositeMaterial]);
+
+  // Store layers ref for use in useFrame without causing re-renders
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
+
+  // Take over rendering
+  useFrame(() => {
+    const currentLayers = layersRef.current;
+
+    // Render each active layer to its FBO
+    MODE_NAMES.forEach((name, i) => {
+      const cfg = currentLayers[name];
+      if (cfg.blend !== 'OFF') {
+        gl.setRenderTarget(fbos[i]);
+        gl.setClearColor(0x000000, 1);
+        gl.clear();
+        gl.render(scenes[i], camera);
+      }
+    });
+
+    // Update compositing uniforms
+    MODE_NAMES.forEach((name, i) => {
+      const cfg = currentLayers[name];
+      compositeMaterial.uniforms[`uLayer${i}` as keyof typeof compositeMaterial.uniforms].value = fbos[i].texture;
+      compositeMaterial.uniforms[`uBlend${i}` as keyof typeof compositeMaterial.uniforms].value = blendToInt(cfg.blend);
+      compositeMaterial.uniforms[`uWeight${i}` as keyof typeof compositeMaterial.uniforms].value = cfg.weight;
+    });
+
+    // Render composite to screen
+    gl.setRenderTarget(null);
+    gl.setClearColor(0x000000, 1);
+    gl.clear();
+    gl.render(compositeScene, orthoCamera);
+  }, 1);
+
+  return (
+    <>
+      {MODE_NAMES.map((name, i) => (
+        <Fragment key={name}>
+          {createPortal(
+            <TerrainRenderer
+              mode={name}
+              heightMap={heightMap}
+              detailMap={detailMap}
+              heightScale={heightScale}
+              pointRadius={pointRadius}
+            />,
+            scenes[i]
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 function App() {
-  const [mode, setMode] = useState('Standard Base');
+  const [layers, setLayers] = useState<Record<string, LayerConfig>>(defaultLayers);
   const [heightScale, setHeightScale] = useState(50);
-  
+  const [pointRadius, setPointRadius] = useState(300);
+
   const [heightMap, detailMap] = useLoader(THREE.TextureLoader, [
     '/assets/hole1_height.png',
     '/assets/hole1_detail.png'
   ]);
 
-  const modes = [
-    'Standard Base', 
-    'Points Colored', 
-    'Toon Shaded', 
-    'Anime Outline', 
-    'Comic Halftone', 
-    'Sketch'
-  ];
+  const setBlend = useCallback((name: string, blend: BlendMode) => {
+    setLayers(prev => ({
+      ...prev,
+      [name]: { ...prev[name], blend },
+    }));
+  }, []);
+
+  const setWeight = useCallback((name: string, weight: number) => {
+    setLayers(prev => ({
+      ...prev,
+      [name]: { ...prev[name], weight },
+    }));
+  }, []);
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0, overflow: 'hidden', background: 'black' }}>
       <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
         <Canvas camera={{ position: [0, 100, 100], fov: 60 }}>
           <OrbitControls />
+
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 50, 10]} intensity={1.5} />
-          
-          <TerrainRenderer 
-             key={mode} 
-             mode={mode} 
-             heightMap={heightMap} 
-             detailMap={detailMap} 
-             heightScale={heightScale} 
+          <CompositeRenderer
+            layers={layers}
+            heightMap={heightMap}
+            detailMap={detailMap}
+            heightScale={heightScale}
+            pointRadius={pointRadius}
           />
         </Canvas>
       </div>
 
       {/* UI */}
-      <div className="absolute top-4 right-4 z-50 bg-white/10 p-4 rounded backdrop-blur text-white max-h-[90vh] overflow-y-auto w-64 pointer-events-auto">
-        <h2 className="font-bold mb-4 border-b border-white/20 pb-2 text-center">STYLE SELECTOR</h2>
-        
-        <div className="mb-6">
-          <label className="block text-xs uppercase text-gray-400 mb-1">Height Scale</label>
-          <div className="flex gap-2 items-center">
-            <input 
-              type="range" 
-              min="0" max="200" 
-              value={heightScale} 
-              onChange={(e) => setHeightScale(Number(e.target.value))}
-              className="w-full"
-            />
-            <span className="text-sm w-8">{heightScale}</span>
-          </div>
-        </div>
+      <div style={{
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        zIndex: 50,
+        background: 'rgba(255,255,255,0.1)',
+        padding: 16,
+        borderRadius: 8,
+        backdropFilter: 'blur(10px)',
+        color: 'white',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        width: 300,
+        pointerEvents: 'auto',
+      }}>
+        <h2 style={{ fontWeight: 'bold', marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 8, textAlign: 'center' }}>LAYER COMPOSITOR</h2>
 
-        <div className="space-y-1">
-          {modes.map(m => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`block w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                mode === m 
-                  ? 'bg-blue-600 font-bold shadow-lg shadow-blue-500/30' 
-                  : 'hover:bg-white/10 text-gray-300 hover:text-white'
-              }`}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 11, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 4 }}>Height Scale</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="range"
+                  min="0" max="200"
+                  value={heightScale}
+                  onChange={(e) => setHeightScale(Number(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+                <span style={{ fontSize: 14, width: 32 }}>{heightScale}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {MODE_NAMES.map(name => {
+                const cfg = layers[name];
+                const isOff = cfg.blend === 'OFF';
+                return (
+                  <div key={name} style={{
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    background: isOff ? 'transparent' : 'rgba(255,255,255,0.05)',
+                    border: isOff ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(59,130,246,0.4)',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6, color: isOff ? '#9ca3af' : 'white' }}>
+                      {name}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {(['OFF', 'ADD', 'MULT'] as BlendMode[]).map(b => (
+                        <button
+                          key={b}
+                          onClick={() => setBlend(name, b)}
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: 11,
+                            fontWeight: cfg.blend === b ? 'bold' : 'normal',
+                            border: 'none',
+                            borderRadius: 3,
+                            cursor: 'pointer',
+                            background: cfg.blend === b
+                              ? (b === 'OFF' ? '#6b7280' : b === 'ADD' ? '#2563eb' : '#9333ea')
+                              : 'rgba(255,255,255,0.1)',
+                            color: cfg.blend === b ? 'white' : '#9ca3af',
+                          }}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                      <input
+                        type="range"
+                        min="0" max="1" step="0.01"
+                        value={cfg.weight}
+                        onChange={(e) => setWeight(name, Number(e.target.value))}
+                        disabled={isOff}
+                        style={{
+                          flex: 1,
+                          opacity: isOff ? 0.3 : 1,
+                          cursor: isOff ? 'default' : 'pointer',
+                        }}
+                      />
+                      <span style={{
+                        fontSize: 12,
+                        width: 32,
+                        textAlign: 'right',
+                        color: isOff ? '#6b7280' : '#d1d5db',
+                        fontFamily: 'monospace',
+                      }}>
+                        {cfg.weight.toFixed(2)}
+                      </span>
+                    </div>
+                    {name === 'Points Colored' && (
+                      <div style={{ marginTop: 6 }}>
+                        <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', color: '#9ca3af', marginBottom: 2 }}>Point Radius</label>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            type="range"
+                            min="50" max="800"
+                            value={pointRadius}
+                            onChange={(e) => setPointRadius(Number(e.target.value))}
+                            style={{ flex: 1 }}
+                          />
+                          <span style={{ fontSize: 12, width: 32, textAlign: 'right', color: '#d1d5db', fontFamily: 'monospace' }}>
+                            {pointRadius}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
       </div>
     </div>
   );
