@@ -3,6 +3,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useGameStore } from '../stores/gameStore';
+import { useTerrainStore } from '../stores/terrainStore';
+import { useDebugStore } from '../stores/debugStore';
 import { smoothDampVec3 } from '../utils/smoothDamp';
 
 interface CameraDroneProps {
@@ -20,6 +22,12 @@ const BASE_BACK = 5;
 const BASE_UP = 2;
 const LOOK_UP = 1;
 
+// Drone mode constants
+const DRONE_PAN_SPEED = 30; // units per second at full joystick deflection
+const DRONE_ELEV_SPEED = 20; // slower than pan for control
+const DRONE_YAW_SPEED = 1.5; // radians per second at full deflection
+const DRONE_MIN_GROUND_CLEARANCE = 2; // minimum height above terrain
+
 export function CameraDrone({
   controlsRef,
   freeRoam,
@@ -33,6 +41,13 @@ export function CameraDrone({
   const ballStartPosition = useGameStore((s) => s.ballStartPosition);
   const holePosition = useGameStore((s) => s.holePosition);
   const courseReady = useGameStore((s) => s.courseReady);
+  const droneMode = useGameStore((s) => s.droneMode);
+  const droneJoystick = useGameStore((s) => s.droneJoystick);
+  const droneElevation = useGameStore((s) => s.droneElevation);
+  const droneYaw = useGameStore((s) => s.droneYaw);
+
+  const getTerrainHeight = useTerrainStore((s) => s.getHeightAtWorldPosition);
+  const droneDelay = useDebugStore((s) => s.droneDelay);
 
   const dronePos = useRef(new Vector3());
   const droneLookAt = useRef(new Vector3());
@@ -44,6 +59,14 @@ export function CameraDrone({
   const initialized = useRef(false);
   // Track ballStartPosition so we know when player moved (shot transition)
   const lastBallStart = useRef<[number, number, number]>([0, 0, 0]);
+  // Track when ball flight started (elapsed time)
+  const flightStartTime = useRef<number | null>(null);
+  // Drone mode: accumulated joystick pan offset
+  const droneOffset = useRef(new Vector3());
+  const droneBasePos = useRef(new Vector3());
+  const droneBaseLookAt = useRef(new Vector3());
+  const droneYawAngle = useRef(0);
+  const wasDroneMode = useRef(false);
 
   function getBehind(playerPos: Vector3, holeV: Vector3): Vector3 {
     const dir = playerPos.clone().sub(holeV);
@@ -80,16 +103,23 @@ export function CameraDrone({
     lastBallStart.current = [...ballStartPosition];
   }, [courseReady]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (freeRoam || !controlsRef.current || !courseReady) return;
     const controls = controlsRef.current;
     const dt = Math.min(delta, 0.1);
+    const elapsed = state.clock.getElapsedTime();
 
     const playerPos = new Vector3(ballStartPosition[0], ballStartPosition[1], ballStartPosition[2]);
     const holeV = new Vector3(holePosition[0], holePosition[1], holePosition[2]);
+
     const ballV = new Vector3(ball.position[0], ball.position[1], ball.position[2]);
 
     const isBallFlying = ball.isFlying && swingPhase === 'swinging';
+
+    // Reset flight start time when ball stops flying
+    if (!isBallFlying) {
+      flightStartTime.current = null;
+    }
 
     // Detect if ballStartPosition changed (shot transition — player moved)
     const bsp = ballStartPosition;
@@ -99,37 +129,98 @@ export function CameraDrone({
       lastBallStart.current = [...bsp];
     }
 
+    // Accumulate joystick pan + elevation + yaw in drone mode
+    if (droneMode) {
+      const [jx, jz] = droneJoystick;
+      droneOffset.current.x += jx * DRONE_PAN_SPEED * dt;
+      droneOffset.current.z += jz * DRONE_PAN_SPEED * dt;
+      droneOffset.current.y += droneElevation * DRONE_ELEV_SPEED * dt;
+      droneYawAngle.current += droneYaw * DRONE_YAW_SPEED * dt;
+    }
+
+    // Reset offset when leaving drone mode
+    if (!droneMode && droneOffset.current.lengthSq() > 0) {
+      droneOffset.current.set(0, 0, 0);
+    }
+
+    // Detect drone mode transitions — seed from current camera for smooth transition
+    if (droneMode !== wasDroneMode.current) {
+      if (droneMode) {
+        // Entering: capture current camera as base, reset offset + yaw
+        droneBasePos.current.copy(camera.position);
+        droneBaseLookAt.current.copy(controls.target);
+        droneOffset.current.set(0, 0, 0);
+        droneYawAngle.current = 0;
+      }
+      dronePos.current.copy(camera.position);
+      droneLookAt.current.copy(controls.target);
+      posVel.current.set(0, 0, 0);
+      lookVel.current.set(0, 0, 0);
+      droneActive.current = true;
+      settled.current = 0;
+      wasDroneMode.current = droneMode;
+    }
+
     let desiredPos: Vector3;
     let desiredLookAt: Vector3;
     let posSmoothTime: number;
     let lookSmoothTime: number;
 
     if (isBallFlying) {
-      const vel = new Vector3(ball.velocity[0], ball.velocity[1], ball.velocity[2]);
-      const speed = vel.length();
+      // Use horizontal velocity only — camera shouldn't dive with the ball
+      const horizVel = new Vector3(ball.velocity[0], 0, ball.velocity[2]);
+      const horizSpeed = horizVel.length();
       const toHole = holeV.clone().sub(ballV);
       toHole.y = 0;
       const toHoleDir = toHole.length() > 0.1 ? toHole.normalize() : new Vector3(0, 0, 1);
-
-      const flightDir = speed > 1
-        ? vel.clone().normalize()
+      const flightDir = horizSpeed > 1
+        ? horizVel.normalize()
         : toHoleDir.clone();
 
-      // Camera: behind ball, higher up, further back
-      const followDist = 12 + speed * 0.15;
-      const followHeight = 8 + ball.position[1] * 0.3;
+      // How long has the ball been flying?
+      const flightElapsed = flightStartTime.current !== null
+        ? elapsed - flightStartTime.current
+        : 0;
 
-      desiredPos = ballV.clone()
-        .sub(flightDir.clone().multiplyScalar(followDist))
-        .add(new Vector3(0, followHeight, 0));
-      if (desiredPos.y < 3) desiredPos.y = 3;
+      if (flightElapsed < droneDelay) {
+        // WAIT PHASE: camera stays frozen at tee, gently tracks ball with look-at
+        desiredPos = camera.position.clone();
+        desiredLookAt = ballV.clone();
+        posSmoothTime = 1.0;    // frozen position
+        lookSmoothTime = 0.4;   // gentle look-at tracking
+      } else {
+        // CHASE PHASE: ground-level chase behind ball
+        const chaseDist = 15 + horizSpeed * 0.1;
 
-      // Look at ball with a small fixed nudge forward (max 5 units)
-      // so hole direction is slightly ahead in frame, but ball stays centered
-      desiredLookAt = ballV.clone().add(toHoleDir.clone().multiplyScalar(5));
-      posSmoothTime = 0.3;
+        const chasePos = ballV.clone()
+          .sub(flightDir.clone().multiplyScalar(chaseDist));
+
+        // Match ball height so the drone never has to look steeply up
+        const groundHeight = getTerrainHeight(chasePos.x, chasePos.z);
+        chasePos.y = Math.max(ballV.y, groundHeight + 2.5);
+
+        desiredPos = chasePos;
+        desiredLookAt = ballV.clone();
+        posSmoothTime = 0.5;
+        lookSmoothTime = 0.15;
+      }
+    } else if (droneMode) {
+      // Free-fly: base position + accumulated offset, view rotated by yaw
+      desiredPos = droneBasePos.current.clone().add(droneOffset.current);
+      // Clamp camera Y to terrain + minimum clearance
+      const groundH = getTerrainHeight(desiredPos.x, desiredPos.z);
+      desiredPos.y = Math.max(desiredPos.y, groundH + DRONE_MIN_GROUND_CLEARANCE);
+      // Rotate original view direction by accumulated yaw
+      const viewDir = droneBaseLookAt.current.clone().sub(droneBasePos.current);
+      const cosY = Math.cos(droneYawAngle.current);
+      const sinY = Math.sin(droneYawAngle.current);
+      const rx = viewDir.x * cosY - viewDir.z * sinY;
+      const rz = viewDir.x * sinY + viewDir.z * cosY;
+      desiredLookAt = desiredPos.clone().add(new Vector3(rx, viewDir.y, rz));
+      posSmoothTime = 0.15;   // snappy response
       lookSmoothTime = 0.15;
     } else {
+      // Normal tee-behind position
       const behind = getBehind(playerPos, holeV);
       desiredPos = playerPos.clone().add(behind.multiplyScalar(BASE_BACK)).add(new Vector3(0, BASE_UP, 0));
       desiredLookAt = playerPos.clone().add(new Vector3(0, LOOK_UP, 0));
@@ -148,6 +239,7 @@ export function CameraDrone({
       lookVel.current.set(0, 0, 0);
       droneActive.current = true;
       settled.current = 0;
+      flightStartTime.current = elapsed;
     }
     if (ballStartMoved) {
       // Snap camera to new base position — no spring animation for shot transitions
@@ -168,7 +260,7 @@ export function CameraDrone({
       camera.position.copy(dronePos.current);
       controls.target.copy(droneLookAt.current);
 
-      if (!isBallFlying) {
+      if (!isBallFlying && !droneMode) {
         const err = dronePos.current.distanceTo(desiredPos);
         if (err < SETTLED_DISTANCE && posVel.current.length() < 0.01) {
           settled.current++;

@@ -37,6 +37,8 @@ export function Stage() {
   const ballPos = useGameStore((s) => s.ball.position);
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
   
+  const droneMode = useGameStore((s) => s.droneMode);
+
   // Debug state
   const { showWireframe, freeRoamCamera, surfaceEditorOpen, showVoxels } = useDebugStore();
 
@@ -82,17 +84,21 @@ export function Stage() {
   }, []);
 
   // Camera Constraints Logic
-  const minPolarAngle = surfaceEditorOpen ? 0 : (freeRoamCamera 
-    ? 0.1 
-    : (screenMode === 'playing'
-      ? (isCameraFollowing ? 0.1 : (isAltPressed ? PLAY_MODE_MIN_POLAR_ANGLE : lockedPolarAngle))
-      : 0.2));
-      
-  const maxPolarAngle = surfaceEditorOpen ? 0 : (freeRoamCamera
+  const minPolarAngle = surfaceEditorOpen ? 0 : (droneMode
+    ? 0.1
+    : (freeRoamCamera
+      ? 0.1
+      : (screenMode === 'playing'
+        ? (isCameraFollowing ? 0.1 : (isAltPressed ? PLAY_MODE_MIN_POLAR_ANGLE : lockedPolarAngle))
+        : 0.2)));
+
+  const maxPolarAngle = surfaceEditorOpen ? 0 : (droneMode
     ? Math.PI - 0.1
-    : (screenMode === 'playing'
-      ? (isCameraFollowing ? Math.PI - 0.1 : (isAltPressed ? PLAY_MODE_MAX_POLAR_ANGLE : lockedPolarAngle))
-      : Math.PI / 2.1));
+    : (freeRoamCamera
+      ? Math.PI - 0.1
+      : (screenMode === 'playing'
+        ? (isCameraFollowing ? Math.PI - 0.1 : (isAltPressed ? PLAY_MODE_MAX_POLAR_ANGLE : lockedPolarAngle))
+        : Math.PI / 2.1)));
 
   // Force Top Down View for Editor
   useEffect(() => {
@@ -104,11 +110,11 @@ export function Stage() {
     }
   }, [surfaceEditorOpen]);
 
-  const minAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+  const minAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && !droneMode && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle - PLAY_MODE_AZIMUTH_RANGE
     : -Infinity;
-    
-  const maxAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
+
+  const maxAzimuthAngle = !surfaceEditorOpen && !freeRoamCamera && !droneMode && screenMode === 'playing' && centerAzimuthAngle !== null && !isCameraFollowing
     ? centerAzimuthAngle + PLAY_MODE_AZIMUTH_RANGE
     : Infinity;
 
@@ -117,9 +123,9 @@ export function Stage() {
 
   const enableCameraInSelection = screenMode === 'selection' && isCtrlPressed;
   
-  const enableRotate = !surfaceEditorOpen && (freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)));
-  const enableZoom = freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection));
-  const enablePan = freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed));
+  const enableRotate = !droneMode && !surfaceEditorOpen && (freeRoamCamera || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)));
+  const enableZoom = !droneMode && (freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode !== 'selection' || enableCameraInSelection)));
+  const enablePan = !droneMode && (freeRoamCamera || surfaceEditorOpen || (!isCameraFollowing && (screenMode === 'selection' ? enableCameraInSelection : isAltPressed)));
 
   return (
     <>

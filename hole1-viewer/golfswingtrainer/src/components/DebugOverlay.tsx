@@ -9,6 +9,12 @@ export function DebugOverlay() {
   const ballPhase = useGameStore((s) => s.ball.isFlying ? 'Flying' : 'Ground');
   const getHeight = useTerrainStore((s) => s.getHeightAtWorldPosition);
 
+  // Raw terrain data for render height calculation
+  const rawHeightData = useTerrainStore((s) => s.rawHeightData);
+  const rawDimensions = useTerrainStore((s) => s.rawDimensions);
+  const terrainSize = useTerrainStore((s) => s.terrainSize);
+  const heightScale = useTerrainStore((s) => s.heightScale);
+
   const {
     showWireframe,
     toggleWireframe,
@@ -18,10 +24,6 @@ export function DebugOverlay() {
     setSurfaceEditorOpen,
     terrainYOffset,
     setTerrainYOffset,
-    renderYOffset,
-    setRenderYOffset,
-    heightMultiplier,
-    setHeightMultiplier,
     showVoxels,
     toggleShowVoxels,
     voxelWidth,
@@ -33,10 +35,41 @@ export function DebugOverlay() {
     voxelScale,
     setVoxelScale,
     fogFar,
-    setFogFar
+    setFogFar,
+    showSkybox,
+    setShowSkybox,
+    skyboxUpperSquish,
+    setSkyboxUpperSquish,
+    skyboxLowerSquish,
+    setSkyboxLowerSquish,
+    skyboxHorizonStretch,
+    setSkyboxHorizonStretch,
+    skyboxHorizonBias,
+    setSkyboxHorizonBias,
+    skyboxRotation,
+    setSkyboxRotation,
+    droneDelay,
+    setDroneDelay,
   } = useDebugStore();
 
-  const groundHeight = getHeight(ballPos[0], ballPos[2]);
+  // Collision height (includes terrainYOffset)
+  const collisionHeight = getHeight(ballPos[0], ballPos[2]);
+
+  // Render height (raw heightmap, no offset) — same sampling as GolfCourseRenderer
+  let renderHeight = 0;
+  if (rawHeightData && rawDimensions.width > 0) {
+    const halfSize = terrainSize / 2;
+    const u = (ballPos[0] + halfSize) / terrainSize;
+    const v = (ballPos[2] + halfSize) / terrainSize;
+    const sampleU = Math.max(0, Math.min(1, u));
+    const sampleV = Math.max(0, Math.min(1, v));
+    const px = Math.floor(sampleU * (rawDimensions.width - 1));
+    const py = Math.floor(sampleV * (rawDimensions.height - 1));
+    const idx = (py * rawDimensions.width + px) * 4;
+    renderHeight = (rawHeightData[idx] / 255) * heightScale;
+  }
+
+  const heightOffset = collisionHeight - renderHeight;
 
   // Toggle with backtick
   useEffect(() => {
@@ -95,8 +128,10 @@ export function DebugOverlay() {
       </div>
 
       <div style={{ marginTop: '5px' }}>
-        <strong>Terrain Height:</strong> {groundHeight.toFixed(2)}<br/>
-        <strong>Delta Y:</strong> {(ballPos[1] - groundHeight).toFixed(2)}
+        <strong>Render Height:</strong> {renderHeight.toFixed(2)}<br/>
+        <strong>Collision Height:</strong> {collisionHeight.toFixed(2)}<br/>
+        <strong>Offset:</strong> {heightOffset.toFixed(2)}<br/>
+        <strong>Ball Delta Y:</strong> {(ballPos[1] - collisionHeight).toFixed(2)}
       </div>
 
       <div style={{ marginTop: '5px' }}>
@@ -136,9 +171,30 @@ export function DebugOverlay() {
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
         <strong>Terrain</strong>
         {renderSlider('Y Offset', terrainYOffset, setTerrainYOffset, -20, 20)}
-        {renderSlider('Render Y Offset', renderYOffset, setRenderYOffset, -20, 20)}
-        {renderSlider('Height Multiplier', heightMultiplier, setHeightMultiplier, 0.5, 1.5, 0.01)}
         {renderSlider('Fog Distance', fogFar, setFogFar, 100, 5000)}
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Camera</strong>
+        {renderSlider('Drone Delay', droneDelay, setDroneDelay, 0, 5, 0.1)}
+      </div>
+
+      <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>
+        <strong>Skybox</strong>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '5px', marginTop: '5px' }}>
+          <input
+            type="checkbox"
+            checked={showSkybox}
+            onChange={(e) => setShowSkybox(e.target.checked)}
+            style={{ marginRight: '5px' }}
+          />
+          Show Skybox
+        </label>
+        {renderSlider('Upper Squish', skyboxUpperSquish, setSkyboxUpperSquish, 0.1, 5.0, 0.1)}
+        {renderSlider('Lower Squish', skyboxLowerSquish, setSkyboxLowerSquish, 0.1, 5.0, 0.1)}
+        {renderSlider('Horizon Stretch', skyboxHorizonStretch, setSkyboxHorizonStretch, 0.1, 5.0, 0.1)}
+        {renderSlider('Horizon Bias', skyboxHorizonBias, setSkyboxHorizonBias, -0.9, 0.9, 0.01)}
+        {renderSlider('Rotation', skyboxRotation, setSkyboxRotation, -3.14, 3.14, 0.01)}
       </div>
 
       <div style={{ marginTop: '10px', borderTop: '1px solid #333', paddingTop: '5px' }}>

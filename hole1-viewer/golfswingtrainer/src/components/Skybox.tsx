@@ -16,16 +16,32 @@ const skyboxFragmentShader = `
   uniform float upperSquish;
   uniform float lowerSquish;
   uniform float horizonStretch;
+  uniform float horizonBias;
+  uniform float rotation;
   varying vec3 vWorldDirection;
 
   void main() {
     vec3 viewDir = normalize(vWorldDirection);
+
+    // Rotate around Y axis
+    float cosR = cos(rotation);
+    float sinR = sin(rotation);
+    viewDir = vec3(
+      cosR * viewDir.x + sinR * viewDir.z,
+      viewDir.y,
+      -sinR * viewDir.x + cosR * viewDir.z
+    );
+
     float y = viewDir.y;
 
-    if (y > 0.0) {
-      y = pow(y, upperSquish);
+    if (y > horizonBias) {
+      // Remap [horizonBias, 1] -> [0, 1], then squish
+      float t = (y - horizonBias) / (1.0 - horizonBias);
+      y = pow(t, upperSquish);
     } else {
-      y = -pow(abs(y), lowerSquish);
+      // Remap [-1, horizonBias] -> [0, 1], then squish negative
+      float t = (horizonBias - y) / (1.0 + horizonBias);
+      y = -pow(t, lowerSquish);
     }
 
     y = y * horizonStretch;
@@ -44,6 +60,8 @@ interface SkyboxProps {
   upperSquish?: number;
   lowerSquish?: number;
   horizonStretch?: number;
+  horizonBias?: number;
+  rotation?: number;
 }
 
 export function Skybox({
@@ -51,6 +69,8 @@ export function Skybox({
   upperSquish = 1.0,
   lowerSquish = 1.0,
   horizonStretch = 1.0,
+  horizonBias = 0,
+  rotation = 0,
 }: SkyboxProps) {
   const [cubeTexture, setCubeTexture] = useState<THREE.CubeTexture | null>(null);
 
@@ -74,6 +94,8 @@ export function Skybox({
         upperSquish: { value: upperSquish },
         lowerSquish: { value: lowerSquish },
         horizonStretch: { value: horizonStretch },
+        horizonBias: { value: horizonBias },
+        rotation: { value: rotation },
       },
       vertexShader: skyboxVertexShader,
       fragmentShader: skyboxFragmentShader,
@@ -82,7 +104,7 @@ export function Skybox({
       depthTest: false,
     });
     return [geo, mat];
-  }, [cubeTexture, upperSquish, lowerSquish, horizonStretch]);
+  }, [cubeTexture, upperSquish, lowerSquish, horizonStretch, horizonBias, rotation]);
 
   if (!cubeTexture) return null;
 

@@ -24,3 +24,16 @@ export const CLUBS: ClubConfig[] = [
 
 export const CLUB_MAP = Object.fromEntries(CLUBS.map(c => [c.id, c])) as Record<ClubId, ClubConfig>;
 export const DEFAULT_CLUB: ClubId = 'driver';
+
+/** Map each gameplay club to the swing animation type it should use */
+export const CLUB_SWING_TYPE: Record<ClubId, 'driver' | 'iron'> = {
+  driver: 'driver',
+  '3w': 'driver',
+  '5i': 'iron',
+  '6i': 'iron',
+  '7i': 'iron',
+  '8i': 'iron',
+  '9i': 'iron',
+  pw: 'iron',
+  sw: 'iron',
+};

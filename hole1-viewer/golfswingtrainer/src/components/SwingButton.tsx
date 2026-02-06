@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, type PointerEvent as ReactPointerEvent } from 'react';
 import { useGameStore } from '../stores/gameStore';
 
 interface TrailPoint {
@@ -85,10 +85,176 @@ function classifyShotType(sidespin: number, direction: number): string {
   return sidespin < 0 ? 'big_draw' : 'big_fade';
 }
 
+const JOYSTICK_SIZE = 110;
+const JOYSTICK_HEIGHT = 140;
+
+/**
+ * Joystick UI for drone mode — drag to pan camera (X/Z)
+ */
+function DroneJoystick() {
+  const setDroneJoystick = useGameStore((s) => s.setDroneJoystick);
+
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const centerRef = useRef({ x: 0, y: 0 });
+
+  const maxRadius = JOYSTICK_SIZE / 2 - DOT_SIZE / 2;
+
+  const handlePointerDown = useCallback((e: ReactPointerEvent) => {
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    centerRef.current = { x: e.clientX, y: e.clientY };
+    setDragging(true);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  const handlePointerMove = useCallback((e: ReactPointerEvent) => {
+    if (!dragging) return;
+    const dx = e.clientX - centerRef.current.x;
+    const dy = e.clientY - centerRef.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clamped = Math.min(dist, maxRadius);
+    const scale = dist > 0 ? clamped / dist : 0;
+    const cx = dx * scale;
+    const cy = dy * scale;
+    setOffset({ x: cx, y: cy });
+    const normX = cx / maxRadius;
+    const normZ = cy / maxRadius;
+    setDroneJoystick(normX, normZ);
+  }, [dragging, maxRadius, setDroneJoystick]);
+
+  const handlePointerUp = useCallback(() => {
+    setDragging(false);
+    setOffset({ x: 0, y: 0 });
+    setDroneJoystick(0, 0);
+  }, [setDroneJoystick]);
+
+  return (
+    <div
+      ref={areaRef}
+      className="relative rounded-2xl overflow-hidden touch-none cursor-pointer bg-black/40 backdrop-blur-sm border-2 border-blue-400/50 flex items-center justify-center"
+      style={{ width: JOYSTICK_SIZE, height: JOYSTICK_HEIGHT }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 text-sm font-bold text-blue-300 pointer-events-none drop-shadow-lg">
+        PAN
+      </div>
+      <div className="absolute w-px h-12 bg-white/20 pointer-events-none" style={{ left: JOYSTICK_SIZE / 2, top: JOYSTICK_HEIGHT / 2 - 24 }} />
+      <div className="absolute h-px w-12 bg-white/20 pointer-events-none" style={{ top: JOYSTICK_HEIGHT / 2, left: JOYSTICK_SIZE / 2 - 24 }} />
+      <div
+        className={`absolute rounded-full ${dragging ? 'bg-blue-400 shadow-lg shadow-blue-400/50' : 'bg-white'}`}
+        style={{
+          width: DOT_SIZE,
+          height: DOT_SIZE,
+          left: JOYSTICK_SIZE / 2 - DOT_SIZE / 2 + offset.x,
+          top: JOYSTICK_HEIGHT / 2 - DOT_SIZE / 2 + offset.y,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Elevation + Yaw joystick — vertical = camera Y, horizontal = yaw rotation
+ */
+function ElevJoystick() {
+  const setDroneElevation = useGameStore((s) => s.setDroneElevation);
+  const setDroneYaw = useGameStore((s) => s.setDroneYaw);
+
+  const areaRef = useRef<HTMLDivElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const centerRef = useRef({ x: 0, y: 0 });
+
+  const maxRadius = JOYSTICK_SIZE / 2 - DOT_SIZE / 2;
+
+  const handlePointerDown = useCallback((e: ReactPointerEvent) => {
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    centerRef.current = { x: e.clientX, y: e.clientY };
+    setDragging(true);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  const handlePointerMove = useCallback((e: ReactPointerEvent) => {
+    if (!dragging) return;
+    const dx = e.clientX - centerRef.current.x;
+    const dy = e.clientY - centerRef.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const clamped = Math.min(dist, maxRadius);
+    const scale = dist > 0 ? clamped / dist : 0;
+    const cx = dx * scale;
+    const cy = dy * scale;
+    setOffset({ x: cx, y: cy });
+    // Horizontal = yaw, Vertical = elevation (inverted: drag up = positive)
+    setDroneYaw(cx / maxRadius);
+    setDroneElevation(-cy / maxRadius);
+  }, [dragging, maxRadius, setDroneElevation, setDroneYaw]);
+
+  const handlePointerUp = useCallback(() => {
+    setDragging(false);
+    setOffset({ x: 0, y: 0 });
+    setDroneElevation(0);
+    setDroneYaw(0);
+  }, [setDroneElevation, setDroneYaw]);
+
+  return (
+    <div
+      ref={areaRef}
+      className="relative rounded-2xl overflow-hidden touch-none cursor-pointer bg-black/40 backdrop-blur-sm border-2 border-blue-400/50 flex items-center justify-center"
+      style={{ width: JOYSTICK_SIZE, height: JOYSTICK_HEIGHT }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 text-sm font-bold text-blue-300 pointer-events-none drop-shadow-lg">
+        VIEW
+      </div>
+      <div className="absolute w-px h-12 bg-white/20 pointer-events-none" style={{ left: JOYSTICK_SIZE / 2, top: JOYSTICK_HEIGHT / 2 - 24 }} />
+      <div className="absolute h-px w-12 bg-white/20 pointer-events-none" style={{ top: JOYSTICK_HEIGHT / 2, left: JOYSTICK_SIZE / 2 - 24 }} />
+      <div
+        className={`absolute rounded-full ${dragging ? 'bg-blue-400 shadow-lg shadow-blue-400/50' : 'bg-white'}`}
+        style={{
+          width: DOT_SIZE,
+          height: DOT_SIZE,
+          left: JOYSTICK_SIZE / 2 - DOT_SIZE / 2 + offset.x,
+          top: JOYSTICK_HEIGHT / 2 - DOT_SIZE / 2 + offset.y,
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Full drone controls bar: PAN (left) — DRONE toggle (center) — ELEV (right)
+ */
+function DroneControls() {
+  const setDroneMode = useGameStore((s) => s.setDroneMode);
+
+  return (
+    <div className="absolute bottom-4 left-0 right-0 flex justify-between items-end px-4 z-40">
+      <DroneJoystick />
+      <button
+        className="px-5 py-2 rounded-full text-sm font-bold transition-colors backdrop-blur-sm bg-blue-500/60 text-white border border-blue-400 mb-4"
+        onClick={() => setDroneMode(false)}
+      >
+        DRONE
+      </button>
+      <ElevJoystick />
+    </div>
+  );
+}
+
 /**
  * Swing area with draggable dot and trail — 3-lane layout with curve tracking
  */
 export function SwingButton() {
+  const droneMode = useGameStore((s) => s.droneMode);
   const swingPhase = useGameStore((s) => s.swingPhase);
   const setSwingPhase = useGameStore((s) => s.setSwingPhase);
   const setSwingResult = useGameStore((s) => s.setSwingResult);
@@ -314,6 +480,9 @@ export function SwingButton() {
       window.removeEventListener('touchend', handleEnd);
     };
   }, [isDragging, handleMove, handleEnd]);
+
+  // Drone mode: show full controls bar (after all hooks)
+  if (droneMode) return <DroneControls />;
 
   const handleClick = () => {
     if (swingPhase === 'finished') {

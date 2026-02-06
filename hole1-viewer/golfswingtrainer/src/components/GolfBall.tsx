@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Trail } from '@react-three/drei';
 import { Mesh } from 'three';
+import { BallTrajectory } from './BallTrajectory';
 import { useGameStore, BUMP_DIRECTION_VECTORS } from '../stores/gameStore';
 import { useTerrainStore } from '../stores/terrainStore';
 import type { FlightState } from '../utils/ballPhysics';
@@ -225,7 +225,7 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
 
   const ballMesh = (
     <mesh ref={meshRef} position={currentPosition} castShadow>
-      <sphereGeometry args={[0.02, 16, 16]} />
+      <sphereGeometry args={[0.06, 16, 16]} />
       <meshStandardMaterial
         color="#ffffff"
         roughness={0.3}
@@ -234,20 +234,10 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
     </mesh>
   );
 
-  // Only show trail while ball is flying
-  if (ball.isFlying) {
-    return (
-      <Trail
-        width={1.2}
-        length={100}
-        color="#4ECDC4"
-        attenuation={(t) => t * t * t}
-        decay={1}
-      >
-        {ballMesh}
-      </Trail>
-    );
-  }
-
-  return ballMesh;
+  return (
+    <>
+      {ballMesh}
+      <BallTrajectory />
+    </>
+  );
 }

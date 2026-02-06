@@ -12,7 +12,7 @@ export function ClubSelector() {
   const current = CLUB_MAP[selectedClub];
 
   return (
-    <div className="absolute bottom-6 right-4 z-40 font-mono">
+    <div className="font-mono">
       {/* Expanded list — opens upward */}
       {expanded && !disabled && (
         <div className="mb-2 bg-black/80 backdrop-blur-md rounded-xl border border-white/20 overflow-hidden w-44">

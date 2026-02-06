@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { TOPGOLF_CONFIG } from '../config/targets';
 import type { ShotResult } from '../utils/topgolfScoring';
 import { useTerrainStore } from './terrainStore';
-import { type ClubId, DEFAULT_CLUB, CLUBS } from '../config/clubs';
+import { type ClubId, DEFAULT_CLUB, CLUBS, CLUB_SWING_TYPE } from '../config/clubs';
 import { metersToYards } from '../utils/ballPhysics';
 import {
   getVideoCharacters,
@@ -149,6 +149,16 @@ interface GameState {
   selectedClub: ClubId;
   ballStartPosition: [number, number, number];
 
+  // Drone mode
+  droneMode: boolean;
+  droneJoystick: [number, number];
+  droneElevation: number;
+  droneYaw: number;
+  setDroneMode: (on: boolean) => void;
+  setDroneJoystick: (x: number, z: number) => void;
+  setDroneElevation: (y: number) => void;
+  setDroneYaw: (x: number) => void;
+
   setCoursePositions: (tee: [number, number, number], hole: [number, number, number]) => void;
   setHolePosition: (pos: [number, number, number]) => void;
   setClub: (club: ClubId) => void;
@@ -251,6 +261,16 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectedClub: DEFAULT_CLUB,
   ballStartPosition: [...INITIAL_BALL_STATE.position] as [number, number, number],
 
+  // Drone mode
+  droneMode: false,
+  droneJoystick: [0, 0] as [number, number],
+  droneElevation: 0,
+  droneYaw: 0,
+  setDroneMode: (on) => set({ droneMode: on, droneJoystick: [0, 0], droneElevation: 0, droneYaw: 0 }),
+  setDroneJoystick: (x, z) => set({ droneJoystick: [x, z] as [number, number] }),
+  setDroneElevation: (y) => set({ droneElevation: y }),
+  setDroneYaw: (x) => set({ droneYaw: x }),
+
   setCoursePositions: (tee, hole) => set({
     teePosition: tee,
     holePosition: hole,
@@ -259,7 +279,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     courseReady: true,
   }),
   setHolePosition: (pos) => set({ holePosition: pos }),
-  setClub: (club) => set({ selectedClub: club }),
+  setClub: (club) => set((state) => {
+    const desiredSwingType = CLUB_SWING_TYPE[club];
+    // Only switch to iron animation if character actually has it
+    const availableTypes = getCharacterSwingTypes(state.selectedCharacter);
+    const newClubType = availableTypes.includes(desiredSwingType) ? desiredSwingType : 'driver';
+    return { selectedClub: club, selectedClubType: newClubType };
+  }),
 
   characterIndex: 0,
   selectedCharacter: 'ksenia', // Default character, will be updated after config loads

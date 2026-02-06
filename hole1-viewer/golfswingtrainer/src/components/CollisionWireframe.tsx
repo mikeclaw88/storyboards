@@ -2,55 +2,65 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useTerrainStore } from '../stores/terrainStore';
 import { useDebugStore } from '../stores/debugStore';
-import { getHeightmapSize } from '../utils/terrainLoader';
 
 export function CollisionWireframe() {
-  const terrainData = useTerrainStore((s) => s.terrainData);
-  const terrainPosition = useTerrainStore((s) => s.terrainPosition);
+  const rawHeightData = useTerrainStore((s) => s.rawHeightData);
+  const rawDimensions = useTerrainStore((s) => s.rawDimensions);
+  const terrainSize = useTerrainStore((s) => s.terrainSize);
   const heightScale = useTerrainStore((s) => s.heightScale);
-  const terrainScale = useTerrainStore((s) => s.terrainScale);
   const terrainYOffset = useDebugStore((s) => s.terrainYOffset);
 
   const geometry = useMemo(() => {
-    if (!terrainData) return null;
+    if (!rawHeightData || rawDimensions.width === 0) return null;
 
-    const { dimensions, heightData } = terrainData;
-    const { width, depth } = dimensions;
-    const { cols, rows } = getHeightmapSize(dimensions);
+    const { width, height } = rawDimensions;
 
-    const geo = new THREE.PlaneGeometry(width, depth, cols - 1, rows - 1);
-    
-    // Rotate to XZ plane first
-    geo.rotateX(-Math.PI / 2);
+    // Match GolfCourseRenderer: PlaneGeometry(terrainSize, terrainSize, w-1, h-1)
+    // rotated -PI/2 to lay flat on XZ plane
+    const geo = new THREE.PlaneGeometry(terrainSize, terrainSize, width - 1, height - 1);
 
-    // Apply displacement (same algorithm as visual terrain)
-    const posAttribute = geo.attributes.position;
-    for (let i = 0; i < posAttribute.count; i++) {
-      posAttribute.setY(i, (heightData[i] || 0) * heightScale);
+    const pos = geo.attributes.position;
+    const uv = geo.attributes.uv;
+
+    // Apply height displacement — same as GolfCourseRenderer
+    // sampleHeight(u, 1-v) * heightScale, set into Z (pre-rotation)
+    for (let i = 0; i < pos.count; i++) {
+      const u = uv.getX(i);
+      const v = uv.getY(i);
+
+      // Sample height from raw data — flip v to match renderer
+      const sampleU = Math.max(0, Math.min(1, u));
+      const sampleV = Math.max(0, Math.min(1, 1 - v));
+
+      const px = Math.floor(sampleU * (width - 1));
+      const py = Math.floor(sampleV * (height - 1));
+      const idx = (py * width + px) * 4;
+      const h = (rawHeightData[idx] / 255) * heightScale;
+
+      pos.setZ(i, h);
     }
-    
-    // Recalculate normals/bounds
+
+    pos.needsUpdate = true;
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
 
     return geo;
-  }, [terrainData, heightScale, terrainScale, terrainPosition.y, terrainYOffset]);
+  }, [rawHeightData, rawDimensions, terrainSize, heightScale]);
 
   if (!geometry) return null;
 
   return (
-    <group
-      position={[terrainPosition.x, terrainPosition.y + terrainYOffset, terrainPosition.z]}
-      scale={[terrainScale, terrainScale, terrainScale]}
+    <mesh
+      geometry={geometry}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, terrainYOffset, 0]}
     >
-      <mesh geometry={geometry}>
-        <meshBasicMaterial 
-          color="#ff0000" 
-          wireframe={true} 
-          transparent={true} 
-          opacity={0.3} 
-        />
-      </mesh>
-    </group>
+      <meshBasicMaterial
+        color="#ff0000"
+        wireframe={true}
+        transparent={true}
+        opacity={0.3}
+      />
+    </mesh>
   );
 }

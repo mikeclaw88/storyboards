@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { TextureLoader } from 'three';
 import { useTerrainStore } from '../stores/terrainStore'; // Import Store
 import { useGameStore } from '../stores/gameStore';
+import { useDebugStore } from '../stores/debugStore';
 import { Skybox } from './Skybox';
 
 // === CONFIGURATION ===
@@ -119,6 +120,12 @@ export function GolfCourseRenderer() {
   // Access Stores
   const setRawData = useTerrainStore(s => s.setRawData);
   const setCoursePositions = useGameStore(s => s.setCoursePositions);
+  const showSkybox = useDebugStore(s => s.showSkybox);
+  const skyboxUpperSquish = useDebugStore(s => s.skyboxUpperSquish);
+  const skyboxLowerSquish = useDebugStore(s => s.skyboxLowerSquish);
+  const skyboxHorizonStretch = useDebugStore(s => s.skyboxHorizonStretch);
+  const skyboxHorizonBias = useDebugStore(s => s.skyboxHorizonBias);
+  const skyboxRotation = useDebugStore(s => s.skyboxRotation);
 
   // Load Height Map
   useEffect(() => {
@@ -181,7 +188,16 @@ export function GolfCourseRenderer() {
       .then(res => res.json())
       .then(data => {
         setForestData(data);
-        if (data.config) setConfig(prev => ({ ...prev, ...data.config }));
+        if (data.config) {
+          setConfig(prev => ({ ...prev, ...data.config }));
+          // Initialize skybox debug defaults from forest_data config
+          const ds = useDebugStore.getState();
+          if (data.config.upperSquish != null) ds.setSkyboxUpperSquish(data.config.upperSquish);
+          if (data.config.lowerSquish != null) ds.setSkyboxLowerSquish(data.config.lowerSquish);
+          if (data.config.horizonStretch != null) ds.setSkyboxHorizonStretch(data.config.horizonStretch);
+          if (data.config.horizonBias != null) ds.setSkyboxHorizonBias(data.config.horizonBias);
+          if (data.config.rotation != null) ds.setSkyboxRotation(data.config.rotation);
+        }
       })
       .catch(err => console.error("Failed to load forest data", err));
   }, []);
@@ -351,12 +367,14 @@ export function GolfCourseRenderer() {
   return (
     <>
       <group ref={groupRef} />
-      {forestData?.config?.cubemapPath && (
+      {showSkybox && forestData?.config?.cubemapPath && (
         <Skybox
           cubemapPath={forestData.config.cubemapPath}
-          upperSquish={forestData.config.upperSquish}
-          lowerSquish={forestData.config.lowerSquish}
-          horizonStretch={forestData.config.horizonStretch}
+          upperSquish={skyboxUpperSquish}
+          lowerSquish={skyboxLowerSquish}
+          horizonStretch={skyboxHorizonStretch}
+          horizonBias={skyboxHorizonBias}
+          rotation={skyboxRotation}
         />
       )}
     </>

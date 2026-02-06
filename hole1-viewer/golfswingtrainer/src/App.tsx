@@ -17,6 +17,7 @@ import { LoadScreen } from './components/LoadScreen';
 import { GameHUD } from './components/GameHUD';
 import { GameEndModal } from './components/GameEndModal';
 import { ClubSelector } from './components/ClubSelector';
+import { DroneButton } from './components/DroneButton';
 import { useThree } from '@react-three/fiber';
 import { initSurfaceMap, findRandomGreenPosition } from './utils/surfaceDetection';
 // import { HoleViewer } from './scenes/HoleViewer'; // Removed missing import
@@ -30,6 +31,7 @@ function FogController() {
 export default function App() {
   const screenMode = useGameStore((s) => s.screenMode);
   const setArcPower = useGameStore((s) => s.setArcPower);
+  const droneMode = useGameStore((s) => s.droneMode);
   const surfaceEditorOpen = useDebugStore((s) => s.surfaceEditorOpen);
   // const viewerMode = useDebugStore((s) => s.viewerMode); // Removed unknown prop
 
@@ -69,7 +71,6 @@ export default function App() {
         }}
       >
         <color attach="background" args={['#a8e6ff']} />
-        <fog attach="fog" args={['#a8e6ff', 50, 800]} />
         <FogController />
 
         <Suspense fallback={null}>
@@ -87,7 +88,12 @@ export default function App() {
       ) : (
         <>
           <GameHUD />
-          <ClubSelector />
+          {!droneMode && (
+            <div className="absolute bottom-6 right-4 z-40 flex flex-col items-end gap-2">
+              <DroneButton />
+              <ClubSelector />
+            </div>
+          )}
           <div className="absolute top-6 right-6 z-10">
             <PauseButton />
           </div>

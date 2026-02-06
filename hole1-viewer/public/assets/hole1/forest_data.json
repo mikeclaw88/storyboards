@@ -4026,8 +4026,11 @@
     "stripeWidth": 14,
     "crosshatchDensity": 9,
     "ringSpacing": 3,
-    "upperSquish": 0.5,
-    "lowerSquish": 0.4,
-    "horizonStretch": 1.2
+    "upperSquish": 0.4,
+    "lowerSquish": 0.2,
+    "horizonStretch": 1.2,
+    "horizonBias": 0.05,
+    "rotation": 0.34,
+    "cubemapPath": "/assets/goldenhournyc"
   }
 }
