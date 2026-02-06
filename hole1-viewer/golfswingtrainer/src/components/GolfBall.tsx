@@ -148,7 +148,7 @@ export function GolfBall({ ballConfig }: GolfBallProps) {
 
       // Update store: position + live distance
       const liveDistance = calculateDistance(startPosition, newState.position);
-      updateBallPosition(newState.position, liveDistance);
+      updateBallPosition(newState.position, liveDistance, newState.velocity);
 
       // In topgolf mode: check if ball touched ground inside a target zone
       // If so, stop immediately without rolling

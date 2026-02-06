@@ -122,6 +122,7 @@ interface BallState {
   isVisible: boolean;
   isFlying: boolean;
   position: [number, number, number];
+  velocity: [number, number, number];
   distanceTraveled: number;
 }
 
@@ -195,7 +196,7 @@ interface GameState {
 
   // Ball actions
   launchBall: () => void;
-  updateBallPosition: (position: [number, number, number], distance?: number) => void;
+  updateBallPosition: (position: [number, number, number], distance?: number, velocity?: [number, number, number]) => void;
   landBall: (distance: number) => void;
   resetBall: () => void;
 
@@ -211,6 +212,7 @@ const INITIAL_BALL_STATE: BallState = {
   isVisible: true,
   isFlying: false,
   position: [17.21, 0.03, 219.02],
+  velocity: [0, 0, 0],
   distanceTraveled: 0,
 };
 
@@ -408,8 +410,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   launchBall: () => set((state) => ({
     ball: { ...state.ball, isFlying: true },
   })),
-  updateBallPosition: (position, distance) => set((state) => ({
-    ball: { ...state.ball, position, ...(distance !== undefined ? { distanceTraveled: distance } : {}) },
+  updateBallPosition: (position, distance, velocity) => set((state) => ({
+    ball: { 
+      ...state.ball, 
+      position, 
+      ...(distance !== undefined ? { distanceTraveled: distance } : {}),
+      ...(velocity !== undefined ? { velocity } : {})
+    },
   })),
   landBall: (distance) => set((state) => {
     // Calculate distance to hole

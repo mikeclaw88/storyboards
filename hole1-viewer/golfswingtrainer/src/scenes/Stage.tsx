@@ -7,13 +7,14 @@ import { AimController } from '../components/AimController';
 import { TeeBox } from '../components/TeeBox';
 import { TargetZones } from '../components/TargetZone';
 import { Terrain } from '../components/Terrain';
-import { GolfCourseRenderer } from '../components/GolfCourseRenderer';
+import { GolfCourseRenderer } from '../components/GolfCourseRenderer'; // Import Restored!
 import { CollisionWireframe } from '../components/CollisionWireframe';
 import { GolfHole } from '../components/GolfHole';
 import { SurfaceEditor } from '../components/SurfaceEditor';
 import { useMotionConfig } from '../hooks/useMotionConfig';
 import { useSceneConfig } from '../hooks/useSceneConfig';
 import { SceneProps } from '../components/SceneProp';
+import { CameraSystem } from '../components/CameraSystem';
 import { CameraController } from '../components/CameraController';
 import { DynamicCharacter } from '../components/StageCharacter';
 import { DynamicGolfTee, DynamicGolfBall } from '../components/StageGolfObjects';
@@ -122,11 +123,14 @@ export function Stage() {
 
   return (
     <>
+      {/* 
       <CameraController
         controlsRef={controlsRef}
         onFollowStateChange={setIsCameraFollowing}
         onCenterAzimuthChange={setCenterAzimuthAngle}
       />
+      */}
+      <CameraSystem controlsRef={controlsRef} freeRoam={freeRoamCamera} />
 
       <OrbitControls
         ref={controlsRef}
@@ -209,3 +213,4 @@ export function Stage() {
     </>
   );
 }
+// Force Refresh 123
