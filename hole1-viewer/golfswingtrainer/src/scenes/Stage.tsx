@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, Suspense } from 'react';
-import { OrbitControls, Grid, Environment } from '@react-three/drei';
+import { OrbitControls, Grid } from '@react-three/drei';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useGameStore, isVideoCharacter } from '../stores/gameStore';
 import { useDebugStore } from '../stores/debugStore';
@@ -14,7 +14,7 @@ import { SurfaceEditor } from '../components/SurfaceEditor';
 import { useMotionConfig } from '../hooks/useMotionConfig';
 import { useSceneConfig } from '../hooks/useSceneConfig';
 import { SceneProps } from '../components/SceneProp';
-import { CameraSystem } from '../components/CameraSystem';
+import { CameraDrone } from '../components/CameraDrone';
 import { CameraController } from '../components/CameraController';
 import { DynamicCharacter } from '../components/StageCharacter';
 import { DynamicGolfTee, DynamicGolfBall } from '../components/StageGolfObjects';
@@ -130,7 +130,12 @@ export function Stage() {
         onCenterAzimuthChange={setCenterAzimuthAngle}
       />
       */}
-      <CameraSystem controlsRef={controlsRef} freeRoam={freeRoamCamera} />
+      <CameraDrone
+        controlsRef={controlsRef}
+        freeRoam={freeRoamCamera}
+        onFollowStateChange={setIsCameraFollowing}
+        onCenterAzimuthChange={setCenterAzimuthAngle}
+      />
 
       <OrbitControls
         ref={controlsRef}
@@ -144,7 +149,6 @@ export function Stage() {
         maxAzimuthAngle={maxAzimuthAngle}
         minDistance={minDistance}
         maxDistance={maxDistance}
-        target={[0, 1, 0]}
       />
 
       <ambientLight intensity={0.8} />
@@ -167,7 +171,7 @@ export function Stage() {
         intensity={0.6}
       />
 
-      <Environment preset="sunset" background={false} />
+      {/* Environment preset removed — cubemap skybox in GolfCourseRenderer */}
 
       {/* Old Terrain Disabled - Handled by GolfCourseRenderer */}
       {/* {terrainConfig.visible && (

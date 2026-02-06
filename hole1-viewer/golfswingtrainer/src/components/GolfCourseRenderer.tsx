@@ -3,6 +3,8 @@ import { useThree, useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TextureLoader } from 'three';
 import { useTerrainStore } from '../stores/terrainStore'; // Import Store
+import { useGameStore } from '../stores/gameStore';
+import { Skybox } from './Skybox';
 
 // === CONFIGURATION ===
 const DEFAULT_CONFIG = {
@@ -114,8 +116,9 @@ export function GolfCourseRenderer() {
     `${ASSETS_PATH}/trees/4.png`
   ]);
   
-  // Access Store
+  // Access Stores
   const setRawData = useTerrainStore(s => s.setRawData);
+  const setCoursePositions = useGameStore(s => s.setCoursePositions);
 
   // Load Height Map
   useEffect(() => {
@@ -203,6 +206,33 @@ export function GolfCourseRenderer() {
     return (heightData[idx] / 255) * config.heightScale;
   };
 
+  // Push tee/hole world positions to game store once data is loaded
+  useEffect(() => {
+    if (!forestData || !heightData || dimensions.w === 0) return;
+
+    const cx = -forestData.width / 2;
+    const cz = -forestData.height / 2;
+
+    if (forestData.tee && forestData.hole) {
+      const teeX = forestData.tee.x + cx;
+      const teeZ = forestData.tee.y + cz;
+      const teeY = getHeightAt(teeX, teeZ);
+
+      const holeX = forestData.hole.x + cx;
+      const holeZ = forestData.hole.y + cz;
+      const holeY = getHeightAt(holeX, holeZ);
+
+      console.log('GolfCourseRenderer: Setting course positions', {
+        tee: [teeX, teeY, teeZ],
+        hole: [holeX, holeY, holeZ],
+      });
+      setCoursePositions(
+        [teeX, teeY, teeZ],
+        [holeX, holeY, holeZ]
+      );
+    }
+  }, [forestData, heightData, dimensions, config]);
+
   useEffect(() => {
     if (!groupRef.current || !heightData || !forestData) return;
 
@@ -213,8 +243,8 @@ export function GolfCourseRenderer() {
     const terrainGeo = new THREE.PlaneGeometry(
         config.terrainSize,
         config.terrainSize,
-        config.segments,
-        config.segments
+        dimensions.w - 1,  // match heightmap pixel resolution
+        dimensions.h - 1,
     );
     const pos = terrainGeo.attributes.position;
     const uv = terrainGeo.attributes.uv;
@@ -313,21 +343,22 @@ export function GolfCourseRenderer() {
         group.add(flag);
     }
     
-    // Tee Marker
-    if (forestData.tee) {
-        const tx = forestData.tee.x + cx;
-        const tz = forestData.tee.y + cz;
-        const ty = getHeightAt(tx, tz);
-        
-        const marker = new THREE.Mesh(
-            new THREE.BoxGeometry(1, 4, 1),
-            new THREE.MeshBasicMaterial({ color: 0xff00ff })
-        );
-        marker.position.set(tx, ty + 2, tz);
-        group.add(marker);
-    }
+    // Tee marker removed — was a debug magenta box that bled through
+    // the video character's transparent regions
 
   }, [heightData, forestData, config, surfaceMap, treeTextures]);
 
-  return <group ref={groupRef} />;
+  return (
+    <>
+      <group ref={groupRef} />
+      {forestData?.config?.cubemapPath && (
+        <Skybox
+          cubemapPath={forestData.config.cubemapPath}
+          upperSquish={forestData.config.upperSquish}
+          lowerSquish={forestData.config.lowerSquish}
+          horizonStretch={forestData.config.horizonStretch}
+        />
+      )}
+    </>
+  );
 }

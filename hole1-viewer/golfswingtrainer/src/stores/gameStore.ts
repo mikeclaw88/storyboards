@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { TOPGOLF_CONFIG } from '../config/targets';
 import type { ShotResult } from '../utils/topgolfScoring';
-import { getSurfaceAtPosition } from '../utils/surfaceDetection';
+import { useTerrainStore } from './terrainStore';
 import { type ClubId, DEFAULT_CLUB, CLUBS } from '../config/clubs';
 import { metersToYards } from '../utils/ballPhysics';
 import {
@@ -137,6 +137,10 @@ interface GameState {
   // Topgolf state
   topgolf: TopgolfState;
 
+  // Course positions (set by GolfCourseRenderer once terrain loads)
+  teePosition: [number, number, number];
+  courseReady: boolean;
+
   // Practice Mode State
   holePosition: [number, number, number];
   currentShot: number;
@@ -145,6 +149,7 @@ interface GameState {
   selectedClub: ClubId;
   ballStartPosition: [number, number, number];
 
+  setCoursePositions: (tee: [number, number, number], hole: [number, number, number]) => void;
   setHolePosition: (pos: [number, number, number]) => void;
   setClub: (club: ClubId) => void;
 
@@ -211,7 +216,7 @@ interface GameState {
 const INITIAL_BALL_STATE: BallState = {
   isVisible: true,
   isFlying: false,
-  position: [17.21, 0.03, 219.02],
+  position: [0, 0, 0],
   velocity: [0, 0, 0],
   distanceTraveled: 0,
 };
@@ -225,8 +230,8 @@ const INITIAL_TOPGOLF_STATE: TopgolfState = {
   gameComplete: false,
 };
 
-// Default Hole Position (Z=224 meters, Y=-2)
-const DEFAULT_HOLE_POS: [number, number, number] = [0, -2, 224];
+// Placeholder until course loads via setCoursePositions
+const DEFAULT_HOLE_POS: [number, number, number] = [0, 0, 0];
 
 export const useGameStore = create<GameState>((set, get) => ({
   screenMode: 'selection',
@@ -234,6 +239,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   gameMode: 'practice',
   topgolf: { ...INITIAL_TOPGOLF_STATE },
   
+  // Course positions (set by GolfCourseRenderer)
+  teePosition: [0, 0, 0] as [number, number, number],
+  courseReady: false,
+
   // Hole Defaults
   holePosition: DEFAULT_HOLE_POS,
   currentShot: 1,
@@ -242,6 +251,13 @@ export const useGameStore = create<GameState>((set, get) => ({
   selectedClub: DEFAULT_CLUB,
   ballStartPosition: [...INITIAL_BALL_STATE.position] as [number, number, number],
 
+  setCoursePositions: (tee, hole) => set({
+    teePosition: tee,
+    holePosition: hole,
+    ballStartPosition: [...tee] as [number, number, number],
+    ball: { ...INITIAL_BALL_STATE, position: [...tee] as [number, number, number] },
+    courseReady: true,
+  }),
   setHolePosition: (pos) => set({ holePosition: pos }),
   setClub: (club) => set({ selectedClub: club }),
 
@@ -263,31 +279,31 @@ export const useGameStore = create<GameState>((set, get) => ({
     swingPhase: 'ready',
     swingResult: null,
     pullProgress: 0,
-    ball: { ...INITIAL_BALL_STATE },
+    ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
     spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     // Reset game state
     currentShot: 1,
     practiceHistory: [],
     gameComplete: false,
     selectedClub: DEFAULT_CLUB,
-    ballStartPosition: [...INITIAL_BALL_STATE.position] as [number, number, number],
+    ballStartPosition: [...state.teePosition] as [number, number, number],
     topgolf: state.gameMode === 'practice' ? { ...INITIAL_TOPGOLF_STATE } : state.topgolf,
   })),
-  stopPlay: () => set({
+  stopPlay: () => set((state) => ({
     screenMode: 'selection',
     gameMode: 'practice',
     isPaused: false,
     swingPhase: 'ready',
     swingResult: null,
-    ball: { ...INITIAL_BALL_STATE },
+    ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
     spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
     currentShot: 1,
     practiceHistory: [],
     gameComplete: false,
     selectedClub: DEFAULT_CLUB,
-    ballStartPosition: [...INITIAL_BALL_STATE.position] as [number, number, number],
-  }),
+    ballStartPosition: [...state.teePosition] as [number, number, number],
+  })),
   pauseGame: () => set({ isPaused: true }),
   resumeGame: () => set({ isPaused: false }),
   setCharacter: (id) => {
@@ -350,14 +366,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   setPullProgress: (progress) => set({ pullProgress: Math.max(0, Math.min(1, progress)) }),
   setArcPower: (power) => set({ arcPower: Math.max(0, Math.min(100, power)) }),
   setAimAngle: (angle) => set({ aimAngle: angle }),
-  resetSwing: () => set((state) => ({
-    swingPhase: 'ready',
-    swingResult: null,
-    pullProgress: 0,
-    arcPower: 0,
-    ball: { ...INITIAL_BALL_STATE, position: [...state.ballStartPosition] as [number, number, number] },
-    spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
-  })),
+  resetSwing: () => set((state) => {
+    const pos = state.currentShot > 1 ? state.ballStartPosition : state.teePosition;
+    return {
+      swingPhase: 'ready',
+      swingResult: null,
+      pullProgress: 0,
+      arcPower: 0,
+      ball: { ...INITIAL_BALL_STATE, position: [...pos] as [number, number, number] },
+      spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
+    };
+  }),
   
   nextShot: () => set((state) => {
     // If game is already complete (ball on green), don't advance
@@ -427,11 +446,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       Math.pow(ballPos[2] - holePos[2], 2)
     );
 
-    // Sample surface map at ball's landing position
-    const surface = getSurfaceAtPosition(ballPos[0], ballPos[2]);
+    // Sample surface map at ball's landing position (terrainStore uses correct coordinate system)
+    const rawSurface = useTerrainStore.getState().getSurfaceTypeAtWorldPosition(ballPos[0], ballPos[2]);
+    // Capitalize first letter for display consistency
+    const surface = rawSurface.charAt(0).toUpperCase() + rawSurface.slice(1);
 
     // Check if ball landed on green — round ends
-    const onGreen = surface === 'Green';
+    const onGreen = rawSurface === 'green';
 
     // Record history
     const shotRecord: PracticeShotResult = {
@@ -456,22 +477,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     };
   }),
-  resetBall: () => set({ ball: { ...INITIAL_BALL_STATE } }),
+  resetBall: () => set((state) => ({
+    ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
+  })),
 
   // Game mode actions
   setGameMode: (mode) => set({ gameMode: mode }),
 
-  startTopgolfGame: () => set({
+  startTopgolfGame: () => set((state) => ({
     gameMode: 'topgolf',
     screenMode: 'playing',
     isPaused: false,
     swingPhase: 'ready',
     swingResult: null,
     pullProgress: 0,
-    ball: { ...INITIAL_BALL_STATE },
+    ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
     spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
-  }),
+  })),
 
   recordTopgolfShot: (result) => set((state) => ({
     topgolf: {
@@ -502,22 +525,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       swingPhase: 'ready',
       swingResult: null,
       pullProgress: 0,
-      ball: { ...INITIAL_BALL_STATE },
+      ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
       spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     };
   }),
 
-  endTopgolfGame: () => set({
+  endTopgolfGame: () => set((state) => ({
     screenMode: 'selection',
     gameMode: 'practice',
     isPaused: false,
     swingPhase: 'ready',
     swingResult: null,
     pullProgress: 0,
-    ball: { ...INITIAL_BALL_STATE },
+    ball: { ...INITIAL_BALL_STATE, position: [...state.teePosition] as [number, number, number] },
     spinBumps: { ...INITIAL_SPIN_BUMPS, allocations: [...INITIAL_SPIN_BUMPS.allocations] },
     topgolf: { ...INITIAL_TOPGOLF_STATE },
-  }),
+  })),
 }));
 
 /**

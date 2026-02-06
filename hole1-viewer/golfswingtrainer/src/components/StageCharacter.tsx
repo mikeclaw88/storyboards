@@ -9,7 +9,6 @@ import {
 import { getVideoConfig } from '../stores/videoConfigStore';
 import { VideoCharacter } from './VideoCharacter';
 import { useMotionConfig } from '../hooks/useMotionConfig';
-import { useSceneConfig } from '../hooks/useSceneConfig';
 import { playGolfShotSound } from '../utils/golfShotAudio';
 
 /**
@@ -17,16 +16,18 @@ import { playGolfShotSound } from '../utils/golfShotAudio';
  */
 function SelectionCharacter() {
   const selectedCharacter = useGameStore((s) => s.selectedCharacter);
-  const { getTeeWorldPosition } = useSceneConfig();
+  const teePosition = useGameStore((s) => s.teePosition);
+  const courseReady = useGameStore((s) => s.courseReady);
 
   const charConfig = getCharacterConfig(selectedCharacter);
 
+  if (!courseReady) return null;
+
   // Character position = tee position + offset (left 0.1, up 0.1)
-  const teeWorldPos = getTeeWorldPosition();
   const characterPosition: [number, number, number] = [
-    teeWorldPos.x - 0.1,
-    teeWorldPos.y + 0.1,
-    teeWorldPos.z
+    teePosition[0] - 0.1,
+    teePosition[1] + 0.1,
+    teePosition[2]
   ];
 
   // Only video characters are supported
@@ -65,8 +66,8 @@ function PlayVideoCharacter() {
   const launchBall = useGameStore((s) => s.launchBall);
   const currentShot = useGameStore((s) => s.currentShot);
   const ballStartPosition = useGameStore((s) => s.ballStartPosition);
+  const teePosition = useGameStore((s) => s.teePosition);
   const { getCharacterPosition, getImpactTime, getBackswingTopTime } = useMotionConfig();
-  const { getTeeWorldPosition } = useSceneConfig();
 
   const charConfig = getCharacterConfig(selectedCharacter);
 
@@ -78,8 +79,7 @@ function PlayVideoCharacter() {
   const impactTime = clubTypeConfig?.impactTime ?? getImpactTime(charConfig.id, 'golf_drive') ?? 1.0;
   const backswingTopTime = clubTypeConfig?.backswingTopTime ?? getBackswingTopTime(charConfig.id, 'golf_drive') ?? 0.8;
 
-  // Character position = tee world position + character offset from config
-  const teeWorldPos = getTeeWorldPosition();
+  // Character offset from config
   const charOffset = getCharacterPosition(charConfig.id);
 
   // Track state
@@ -174,9 +174,9 @@ function PlayVideoCharacter() {
         ballStartPosition[2] + charOffset.z,
       ]
     : [
-        teeWorldPos.x + charOffset.x,
-        teeWorldPos.y + charOffset.y,
-        teeWorldPos.z + charOffset.z,
+        teePosition[0] + charOffset.x,
+        teePosition[1] + charOffset.y,
+        teePosition[2] + charOffset.z,
       ];
 
   return (

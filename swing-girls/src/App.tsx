@@ -1,6 +1,5 @@
 import { Suspense, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Loader } from '@react-three/drei';
 import { PCFSoftShadowMap } from 'three';
 import { Stage } from './scenes/Stage';
 import { CharacterSelectionScreen } from './components/CharacterSelectionScreen';
@@ -51,8 +50,6 @@ export default function App() {
         </Suspense>
       </Canvas>
 
-      {/* Loader */}
-      <Loader />
 
       {/* UI based on screen mode */}
       {screenMode === 'selection' ? (

@@ -1,32 +1,55 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Vector3, Quaternion, MathUtils } from 'three';
+import { Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useGameStore } from '../stores/gameStore';
 
-export type CameraMode = 'TEE_STATIC' | 'BALL_FOLLOW' | 'LANDING' | 'FREEROAM';
+export type CameraMode = 'TEE_STATIC' | 'PLAY_READY' | 'BALL_FOLLOW' | 'LANDING' | 'FREEROAM';
 
 interface CameraSystemProps {
   controlsRef: React.RefObject<OrbitControlsImpl | null>;
   freeRoam: boolean;
+  onFollowStateChange?: (following: boolean) => void;
+  onCenterAzimuthChange?: (azimuth: number) => void;
 }
 
-export function CameraSystem({ controlsRef, freeRoam }: CameraSystemProps) {
+export function CameraSystem({ controlsRef, freeRoam, onFollowStateChange, onCenterAzimuthChange }: CameraSystemProps) {
   const { camera } = useThree();
   const ball = useGameStore((s) => s.ball);
   const screenMode = useGameStore((s) => s.screenMode);
   const swingPhase = useGameStore((s) => s.swingPhase);
   const holePosition = useGameStore((s) => s.holePosition);
-  
+  const teePosition = useGameStore((s) => s.teePosition);
+  const courseReady = useGameStore((s) => s.courseReady);
+
   // Internal State
   const modeRef = useRef<CameraMode>('TEE_STATIC');
-  const targetPosRef = useRef(new Vector3()); // Where we are looking
-  const cameraPosRef = useRef(new Vector3()); // Where the camera is
-  
-  // Constants
-  const TEE_OFFSET = new Vector3(0, 2, -4); // Behind player
-  const LANDING_OFFSET = new Vector3(0, 10, -10); // High angle view of landing
-  
+  const prevModeRef = useRef<CameraMode>('TEE_STATIC');
+  const snappedRef = useRef(false);
+
+  // Snap camera immediately when courseReady first becomes true
+  useEffect(() => {
+    if (!courseReady || freeRoam || !controlsRef.current) return;
+
+    const teeV = new Vector3(teePosition[0], teePosition[1], teePosition[2]);
+    const holeV = new Vector3(holePosition[0], holePosition[1], holePosition[2]);
+    const teeToHole = holeV.clone().sub(teeV).normalize();
+
+    // Snap camera to behind tee, looking AT the tee (character position)
+    const pos = teeV.clone()
+      .sub(teeToHole.clone().multiplyScalar(5))
+      .add(new Vector3(0, 2, 0));
+    const target = teeV.clone().add(new Vector3(0, 1, 0));
+
+    camera.position.copy(pos);
+    controlsRef.current.target.copy(target);
+    controlsRef.current.update();
+    snappedRef.current = true;
+
+    // Set the center azimuth so play mode constraints work
+    onCenterAzimuthChange?.(controlsRef.current.getAzimuthalAngle());
+  }, [courseReady]);
+
   // Transition logic
   useEffect(() => {
     if (freeRoam) {
@@ -35,87 +58,120 @@ export function CameraSystem({ controlsRef, freeRoam }: CameraSystemProps) {
     }
 
     if (screenMode === 'selection') {
-       modeRef.current = 'TEE_STATIC'; // Use Selection cam logic eventually
+       modeRef.current = 'TEE_STATIC';
        return;
     }
 
+    // Playing mode
     if (swingPhase === 'swinging' && ball.isFlying) {
-      // Delay switching to follow until ball is slightly away?
-      const dist = Math.sqrt(ball.position[0]**2 + ball.position[2]**2);
+      const dx = ball.position[0] - teePosition[0];
+      const dz = ball.position[2] - teePosition[2];
+      const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > 5) {
         modeRef.current = 'BALL_FOLLOW';
+      } else {
+        modeRef.current = 'PLAY_READY';
       }
     } else if (swingPhase === 'finished' || (swingPhase === 'swinging' && !ball.isFlying)) {
-      // Ball landed
       if (modeRef.current === 'BALL_FOLLOW') {
         modeRef.current = 'LANDING';
       } else {
         modeRef.current = 'TEE_STATIC';
       }
+    } else if (swingPhase === 'ready' || swingPhase === 'pulling') {
+      modeRef.current = 'PLAY_READY';
     } else {
       modeRef.current = 'TEE_STATIC';
     }
-    
-  }, [swingPhase, ball.isFlying, freeRoam, screenMode, ball.position]);
+
+  }, [swingPhase, ball.isFlying, freeRoam, screenMode, ball.position, teePosition]);
 
   useFrame((state, delta) => {
     if (freeRoam || !controlsRef.current) return;
-    
+
     const controls = controlsRef.current;
     const mode = modeRef.current;
-    
-    // Ball Position Vector
+    const modeChanged = mode !== prevModeRef.current;
+
+    if (modeChanged) {
+      prevModeRef.current = mode;
+
+      // Notify Stage about follow state
+      const isFollowing = mode === 'BALL_FOLLOW' || mode === 'LANDING';
+      onFollowStateChange?.(isFollowing);
+    }
+
     const ballV = new Vector3(ball.position[0], ball.position[1], ball.position[2]);
     const holeV = new Vector3(holePosition[0], holePosition[1], holePosition[2]);
+    const teeV = new Vector3(teePosition[0], teePosition[1], teePosition[2]);
 
     if (mode === 'TEE_STATIC') {
-      // Look at ball (or tee if ball is 0,0,0) from behind
-      // Ideal position: Behind player, slightly right (for right-handed)
-      // Current TEE_OFFSET is just behind (0, 2, -4)
-      
-      const desiredPos = new Vector3(0, 1.5, -4.5); // Fixed Tee Cam
-      const desiredTarget = new Vector3(0, 1, 10); // Look down fairway
-      
-      // Smooth lerp
-      camera.position.lerp(desiredPos, delta * 2);
-      controls.target.lerp(desiredTarget, delta * 2);
+      if (!courseReady) return;
+
+      // Snap once on mode entry, then let OrbitControls handle user input
+      if (modeChanged) {
+        const teeToHole = holeV.clone().sub(teeV).normalize();
+        const pos = teeV.clone()
+          .sub(teeToHole.clone().multiplyScalar(5))
+          .add(new Vector3(0, 2, 0));
+        const target = teeV.clone().add(new Vector3(0, 1, 0));
+
+        camera.position.copy(pos);
+        controls.target.copy(target);
+        controls.update();
+
+        onCenterAzimuthChange?.(controls.getAzimuthalAngle());
+      }
+      // No continuous lerp — user has free orbit within Stage's angle constraints
+    }
+    else if (mode === 'PLAY_READY') {
+      if (!courseReady) return;
+
+      // Snap once on mode entry, then let OrbitControls handle user input
+      if (modeChanged) {
+        const teeToHole = holeV.clone().sub(teeV).normalize();
+        const right = new Vector3().crossVectors(teeToHole, new Vector3(0, 1, 0)).normalize();
+
+        const pos = teeV.clone()
+          .sub(teeToHole.clone().multiplyScalar(3))
+          .add(new Vector3(0, 1.5, 0))
+          .add(right.multiplyScalar(1));
+
+        const target = teeV.clone()
+          .add(new Vector3(0, 1, 0))
+          .add(teeToHole.clone().multiplyScalar(1));
+
+        camera.position.copy(pos);
+        controls.target.copy(target);
+        controls.update();
+
+        onCenterAzimuthChange?.(controls.getAzimuthalAngle());
+      }
+      // No continuous lerp — user has free orbit within Stage's angle constraints
     }
     else if (mode === 'BALL_FOLLOW') {
-      // Pro TV Style: 
-      // Camera is behind-ish the ball, but elevated.
-      // Or from the side?
-      // Let's do "Broadcast Wire Cam": Behind and Up.
-      
+      // Continuous lerp to track ball in flight
       const velocity = new Vector3(ball.velocity[0], ball.velocity[1], ball.velocity[2]);
       const speed = velocity.length();
-      
-      // Dynamic offset based on speed/height
-      const followDist = 8 + (speed * 0.1); 
-      const followHeight = 3 + (ball.position[1] * 0.5); 
-      
-      // Calculate position behind ball velocity vector
-      // If velocity is near zero (apex vertical), use direction to hole
+
+      const followDist = 8 + (speed * 0.1);
+      const followHeight = 3 + (ball.position[1] * 0.5);
+
       let direction = velocity.clone().normalize();
       if (speed < 1) {
          direction = holeV.clone().sub(ballV).normalize();
       }
-      
-      // Position: Ball - Direction * Dist + Up * Height
+
       const desiredPos = ballV.clone()
         .sub(direction.multiplyScalar(followDist))
         .add(new Vector3(0, followHeight, 0));
-        
-      // Constraint: Don't go below ground
+
       if (desiredPos.y < 1) desiredPos.y = 1;
 
-      // Lerp camera
       camera.position.lerp(desiredPos, delta * 3);
-      controls.target.lerp(ballV, delta * 5); // Look tightly at ball
+      controls.target.lerp(ballV, delta * 5);
     }
     else if (mode === 'LANDING') {
-      // Static view of where the ball IS (landed)
-      // Maybe slightly orbiting?
-      
       const desiredPos = ballV.clone().add(new Vector3(5, 5, 5));
       camera.position.lerp(desiredPos, delta * 1);
       controls.target.lerp(ballV, delta * 2);

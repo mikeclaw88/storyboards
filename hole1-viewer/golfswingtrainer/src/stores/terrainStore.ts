@@ -109,31 +109,18 @@ export const useTerrainStore = create<TerrainState>((set, get) => ({
 
     // 1. New System (Raw Data)
     if (rawHeightData) {
-      // Map world pos to UV (0-1)
-      // Terrain is centered at origin?
-      // GolfCourseRenderer uses plane geometry centered at (0,0) by default
-      // size is `terrainSize`
-      
+      // World to image pixel — must match GolfCourseRenderer.getHeightAt():
+      //   u = (x / terrainSize + 0.5),  v = (z / terrainSize + 0.5)
+      // NO V-flip: the renderer's sampleHeight(u, 1-v) flips because UV.y
+      // is inverted relative to worldZ after the -PI/2 rotation. Going from
+      // worldZ directly, getHeightAt already accounts for this.
       const halfSize = terrainSize / 2;
       const u = (worldX + halfSize) / terrainSize;
-      // Texture V is flipped in Three.js usually (1-v)?
-      // In GolfCourseRenderer: `sampleHeight(u, 1 - v)`
-      // Here Z corresponds to V. 
-      // Z goes from -half to +half.
-      // v = (z + half) / size.
-      // But standard UV: (0,0) is bottom-left.
-      // In ThreeJS PlaneGeometry: +Y (up) corresponds to V=1?
-      // Let's assume standard mapping:
       const v = (worldZ + halfSize) / terrainSize;
-      
-      // Flip V for image sampling?
-      // GolfCourseRenderer shader uses `vUv`.
-      // `pos.setZ(i, h)` where `h = sampleHeight(u, 1 - v)`.
-      // So we need to sample at `1 - v`.
-      
+
       const sampleU = Math.max(0, Math.min(1, u));
-      const sampleV = Math.max(0, Math.min(1, 1 - v));
-      
+      const sampleV = Math.max(0, Math.min(1, v));
+
       const px = Math.floor(sampleU * (rawDimensions.width - 1));
       const py = Math.floor(sampleV * (rawDimensions.height - 1));
       
@@ -166,15 +153,15 @@ export const useTerrainStore = create<TerrainState>((set, get) => ({
       terrainData, rawSurfaceData, rawDimensions, terrainSize
     } = get();
 
-    // 1. New System
+    // 1. New System — same mapping as getHeightAtWorldPosition (no V-flip)
     if (rawSurfaceData) {
       const halfSize = terrainSize / 2;
       const u = (worldX + halfSize) / terrainSize;
       const v = (worldZ + halfSize) / terrainSize;
-      
+
       const sampleU = Math.max(0, Math.min(1, u));
-      const sampleV = Math.max(0, Math.min(1, 1 - v)); // Flip V like height
-      
+      const sampleV = Math.max(0, Math.min(1, v));
+
       const px = Math.floor(sampleU * (rawDimensions.width - 1));
       const py = Math.floor(sampleV * (rawDimensions.height - 1));
       

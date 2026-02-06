@@ -4028,6 +4028,7 @@
     "ringSpacing": 3,
     "upperSquish": 0.5,
     "lowerSquish": 0.4,
-    "horizonStretch": 1.2
+    "horizonStretch": 1.2,
+    "cubemapPath": "/assets/nycriver"
   }
 }

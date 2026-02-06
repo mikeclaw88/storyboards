@@ -58,7 +58,7 @@ export default function App() {
       <Canvas
         shadows={false} // Disabled for stability
         camera={{
-          position: [0, 150, 300],
+          position: [0, 50, -250],
           fov: 50,
           near: 0.1,
           far: 2000, 
