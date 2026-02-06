@@ -323,21 +323,21 @@ export function GolfCourseRenderer() {
     const treeHeight = config.treeWidth * (832 / 588);
     const treeGeo = new THREE.PlaneGeometry(config.treeWidth, treeHeight);
 
+    // Create shared materials for trees
+    const treeMaterials = treeTextures.map(tex => new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        alphaTest: 0.5,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+    }));
+
     forestData.trees.forEach((t: any) => {
-        const tex = treeTextures[Math.floor(Math.random() * treeTextures.length)];
-        const mat = new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            alphaTest: 0.5,
-            side: THREE.DoubleSide,
-            depthWrite: false, // For proper alpha blending of trees
-        });
+        // Reuse material
+        const mat = treeMaterials[Math.floor(Math.random() * treeMaterials.length)];
 
         const worldX = t.x + cx;
         const worldZ = t.y + cz;
-        // height sampling for trees uses 'v' directly in original code? 
-        // "const py = Math.floor(v * heightHeight);" in original getHeightAt
-        // Let's match original logic:
         const groundY = getHeightAt(worldX, worldZ);
 
         const mesh = new THREE.Mesh(treeGeo, mat);
