@@ -51,7 +51,7 @@ export default function App() {
 
   return (
     <div className="w-full h-full relative">
-      <LoadScreen />
+      {/* <LoadScreen /> */}
       <DebugOverlay />
       <Canvas
         shadows={{ type: PCFSoftShadowMap }}
