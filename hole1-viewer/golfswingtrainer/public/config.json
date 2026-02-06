@@ -1,0 +1,403 @@
+{
+  "defaults": {
+    "selectionCamera": {
+      "position": {
+        "x": -0.132,
+        "y": 1.455,
+        "z": -2.8766
+      },
+      "target": {
+        "x": -0.0985,
+        "y": 0.9017,
+        "z": 0.088
+      }
+    },
+    "playCamera": {
+      "position": {
+        "x": 0.4438,
+        "y": 1.6052,
+        "z": -4.0364
+      },
+      "target": {
+        "x": 0.3575,
+        "y": 1.1356,
+        "z": -0.1693
+      },
+      "polarAngle": 1.45
+    },
+    "club": {
+      "position": {
+        "x": 0,
+        "y": 0.05,
+        "z": 0
+      },
+      "rotation": {
+        "x": -1.5707963267948966,
+        "y": -1.5707963267948966,
+        "z": -1.5707963267948966
+      }
+    },
+    "ball": {
+      "position": {
+        "x": -0.5,
+        "y": 0.02,
+        "z": 0.3
+      }
+    }
+  },
+  "characters": {
+    "ksenia": {
+      "video": {
+        "driver": {
+          "url": "./videos/Ksenia_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.59,
+            "y": -0.88
+          },
+          "scale": 1.94,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.68,
+          "impactTime": 1.94
+        },
+        "idle": {
+          "url": "./videos/Ksenia_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        },
+        "iron": {
+          "url": "./videos/Ksenia_iron.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.25,
+            "y": -0.88
+          },
+          "scale": 1.83,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.78,
+          "impactTime": 2.22
+        }
+      }
+    },
+    "sandra": {
+      "video": {
+        "driver": {
+          "url": "./videos/Sandra_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.53,
+            "y": -0.9
+          },
+          "scale": 2,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 2.1,
+          "impactTime": 2.3
+        },
+        "idle": {
+          "url": "./videos/Sandra_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        },
+        "iron": {
+          "url": "./videos/Sandra_iron.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.52,
+            "y": -0.89
+          },
+          "scale": 1.81,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.06,
+          "impactTime": 1.52
+        }
+      }
+    },
+    "arin": {
+      "video": {
+        "driver": {
+          "url": "./videos/Arin_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.53,
+            "y": -0.87
+          },
+          "scale": 1.98,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.47,
+          "impactTime": 1.9
+        },
+        "idle": {
+          "url": "./videos/Arin_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1.12,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        }
+      }
+    },
+    "karin": {
+      "video": {
+        "driver": {
+          "url": "./videos/Karin_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.52,
+            "y": -0.87
+          },
+          "scale": 1.97,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.11,
+          "impactTime": 1.59
+        },
+        "idle": {
+          "url": "./videos/Karin_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1.18,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        }
+      }
+    },
+    "lyn": {
+      "video": {
+        "driver": {
+          "url": "./videos/Lyn_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.6,
+            "y": -0.92
+          },
+          "scale": 1.91,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.1,
+          "impactTime": 1.62
+        },
+        "idle": {
+          "url": "./videos/Lyn_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1.12,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        }
+      }
+    },
+    "maya": {
+      "video": {
+        "driver": {
+          "url": "./videos/Maya_driver.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0.62,
+            "y": -0.9
+          },
+          "scale": 1.9,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          },
+          "backswingTopTime": 1.1,
+          "impactTime": 1.59
+        },
+        "idle": {
+          "url": "./videos/Maya_idle.mp4",
+          "offset": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "pivot": {
+            "x": 0,
+            "y": -1
+          },
+          "scale": 1.1,
+          "chromaKey": {
+            "color": "#00ff00",
+            "threshold": 0.4,
+            "smoothing": 0.1
+          }
+        }
+      }
+    }
+  },
+  "clubs": {
+    "ironclub5": {
+      "pivot": {
+        "x": -0.006,
+        "y": -0.257,
+        "z": 0.04
+      },
+      "rotation": {
+        "x": 1.5707963267948966,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 0.6,
+      "autoScale": 1.0001831309831
+    },
+    "driver": {
+      "pivot": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 0.779,
+      "autoScale": 0.026361196910437545
+    },
+    "ironclub3": {
+      "pivot": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 1,
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    },
+    "ironclub4": {
+      "pivot": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": 1,
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      }
+    }
+  },
+  "animations": {
+    "golf_drive": {
+      "impactTime": 1.168
+    }
+  }
+}
