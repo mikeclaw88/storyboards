@@ -194,10 +194,11 @@ export function Stage() {
         </Suspense>
       )}
 
-      <DynamicCharacter />
-      <DynamicGolfTee />
-      <DynamicGolfBall />
-      <GolfHole />
+      <GolfCourseRenderer />
+      {/* <DynamicCharacter /> */}
+      {/* <DynamicGolfTee /> */}
+      {/* <DynamicGolfBall /> */}
+      {/* <GolfHole /> */}
       <AimController controlsRef={controlsRef} />
       <TargetZones />
       <SceneProps props={props} />
