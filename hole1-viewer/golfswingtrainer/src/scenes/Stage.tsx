@@ -164,7 +164,8 @@ export function Stage() {
 
       <Environment preset="sunset" background={false} />
 
-      {terrainConfig.visible && (
+      {/* Old Terrain Disabled - Handled by GolfCourseRenderer */}
+      {/* {terrainConfig.visible && (
         <group
           position={[terrainConfig.position.x, terrainConfig.position.y, terrainConfig.position.z]}
           scale={terrainConfig.scale ?? 1}
@@ -183,22 +184,23 @@ export function Stage() {
             />
           </Suspense>
         </group>
-      )}
+      )} */}
       
       {showWireframe && <CollisionWireframe />}
       {showVoxels && <VoxelDebug />}
 
-      {teeBoxConfig.visible && (
+      {/* TeeBox Disabled - Handled by GolfCourseRenderer or check overlap */}
+      {/* {teeBoxConfig.visible && (
         <Suspense fallback={null}>
           <TeeBox config={teeBoxConfig} />
         </Suspense>
-      )}
+      )} */}
 
       <GolfCourseRenderer />
-      {/* <DynamicCharacter /> */}
-      {/* <DynamicGolfTee /> */}
-      {/* <DynamicGolfBall /> */}
-      {/* <GolfHole /> */}
+      <DynamicCharacter />
+      <DynamicGolfTee />
+      <DynamicGolfBall />
+      <GolfHole />
       <AimController controlsRef={controlsRef} />
       <TargetZones />
       <SceneProps props={props} />
