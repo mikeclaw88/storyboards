@@ -261,7 +261,13 @@ export function GolfCourseRenderer() {
     const skyGeo = new THREE.SphereGeometry(5000, 32, 32);
     const skyMesh = new THREE.Mesh(skyGeo, skyMat);
     skyMesh.renderOrder = -1000;
-    group.add(skyMesh);
+    skyMesh.frustumCulled = false;
+    // group.add(skyboxMesh); // Disable Skybox for Debugging
+    
+    // DEBUG: Red Box at Origin
+    const debugBox = new THREE.Mesh(new THREE.BoxGeometry(10, 100, 10), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+    debugBox.position.set(0, 50, 0);
+    group.add(debugBox);
 
     // --- TERRAIN ---
     const terrainGeo = new THREE.PlaneGeometry(
@@ -315,7 +321,7 @@ export function GolfCourseRenderer() {
     const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
     terrainMesh.rotation.x = -Math.PI / 2;
     terrainMesh.receiveShadow = true;
-    group.add(terrainMesh); // Re-enable terrain
+    // group.add(terrainMesh); // DISABLE TERRAIN
 
     // --- TREES & OBJECTS ---
     const cx = -forestData.width / 2;
@@ -362,7 +368,7 @@ export function GolfCourseRenderer() {
         
         mesh.instanceMatrix.needsUpdate = true;
         mesh.userData.isTree = true; // For billboard logic
-        group.add(mesh);
+        // group.add(mesh); // DISABLE TREES
     });
     
     // ... Hole/Tee rendering ...
