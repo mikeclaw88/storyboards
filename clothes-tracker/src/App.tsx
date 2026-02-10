@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Stage } from '@pixi/react'
-import { Play, Pause, Layers, Bone, Scan, Edit3, Settings } from 'lucide-react'
-import { BoneMethod, PixelMethod, PoseMethod, ManualMethod } from './methods'
+import { Play, Pause, Layers, Bone, Scan, Edit3, Settings, Camera, Target } from 'lucide-react'
+import { BoneMethod, PixelMethod, PoseMethod, ManualMethod, IKMethod, OpticalFlowMethod } from './methods'
+import { RiggingPanel, type ClothingAttachment } from './components/RiggingPanel'
 import './index.css'
 
 // Placeholder for methods
@@ -10,14 +11,52 @@ const METHODS = [
   { id: 'pixel', name: 'Pixel Based (Color)', icon: Scan },
   { id: 'pose', name: 'Pose Estimation (MediaPipe)', icon: Layers },
   { id: 'manual', name: 'Manual Keyframing', icon: Edit3 },
+  { id: 'ik', name: 'IK / Hybrid (Pose → Spine)', icon: Target },
+  { id: 'optical', name: 'Optical Flow', icon: Camera },
+]
+
+const AVAILABLE_BONES = [
+  'root', 
+  'hip_center', 
+  'shoulder_center', 
+  'head', 
+  'shoulder_left', 
+  'shoulder_right', 
+  'elbow_left', 
+  'elbow_right', 
+  'wrist_left', 
+  'wrist_right',
+  'knee_left',
+  'knee_right'
+]
+
+const AVAILABLE_CLOTHES = [
+  '/assets/clothes/black_leather_jacket_front.png',
+  '/assets/clothes/hair_bobcut_red_front.png',
+  '/assets/clothes/high_waist_denim_jeans_front.png',
+  '/assets/clothes/linen_summer_dress_front.png',
+  '/assets/clothes/sport_bra_lime_front.png'
 ]
 
 function App() {
   const [activeMethod, setActiveMethod] = useState('bone')
   const [isPlaying, setIsPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
-  
   const [currentTime, setCurrentTime] = useState(0)
+  
+  // Rigging State
+  const [attachments, setAttachments] = useState<ClothingAttachment[]>([
+    // Default example
+    {
+      id: 'default-1',
+      bone: 'head',
+      image: '/assets/clothes/hair_bobcut_red_front.png',
+      offsetX: 0,
+      offsetY: 0,
+      scale: 0.5,
+      rotation: 0
+    }
+  ])
 
   // Video path - relative to public (need to copy or symlink)
   const videoSrc = '/assets/modelnoclothes.mp4' 
@@ -37,7 +76,7 @@ function App() {
   return (
     <div className="flex h-screen w-full bg-slate-900 text-slate-100 overflow-hidden">
       {/* Sidebar */}
-      <div className="w-64 bg-slate-800 p-4 border-r border-slate-700 flex flex-col gap-4">
+      <div className="w-64 bg-slate-800 p-4 border-r border-slate-700 flex flex-col gap-4 z-20 relative">
         <h1 className="text-xl font-bold mb-4">Clothes Tracker</h1>
         
         <div className="space-y-2">
@@ -67,9 +106,18 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col relative">
+        
+        {/* Rigging Panel Overlay */}
+        <RiggingPanel 
+          attachments={attachments}
+          setAttachments={setAttachments}
+          availableBones={AVAILABLE_BONES}
+          availableClothes={AVAILABLE_CLOTHES}
+        />
+
         {/* Toolbar */}
-        <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center px-4 justify-between">
+        <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center px-4 justify-between z-10 relative">
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm bg-slate-900 px-2 py-1 rounded">
               {activeMethod.toUpperCase()} MODE
@@ -96,10 +144,12 @@ function App() {
             {/* Overlay Layer (Canvas/Pixi) */}
             <div className="absolute inset-0 z-10 pointer-events-none">
               <Stage width={800} height={450} options={{ backgroundAlpha: 0, resizeTo: videoRef.current || undefined }}>
-                {activeMethod === 'bone' && <BoneMethod videoRef={videoRef} currentTime={currentTime} isPlaying={isPlaying} />}
+                {activeMethod === 'bone' && <BoneMethod videoRef={videoRef} currentTime={currentTime} isPlaying={isPlaying} attachments={attachments} />}
                 {activeMethod === 'pixel' && <PixelMethod videoRef={videoRef} targetColor={{r: 255, g: 0, b: 0}} />}
                 {activeMethod === 'pose' && <PoseMethod videoRef={videoRef} />}
                 {activeMethod === 'manual' && <ManualMethod currentTime={currentTime} isPlaying={isPlaying} />}
+                {activeMethod === 'ik' && <IKMethod videoRef={videoRef} attachments={attachments} />}
+                {activeMethod === 'optical' && <OpticalFlowMethod videoRef={videoRef} />}
               </Stage>
             </div>
 
@@ -113,7 +163,7 @@ function App() {
         </div>
 
         {/* Timeline / Controls */}
-        <div className="h-24 bg-slate-800 border-t border-slate-700 p-4 flex items-center gap-4">
+        <div className="h-24 bg-slate-800 border-t border-slate-700 p-4 flex items-center gap-4 z-10 relative">
           <button 
             onClick={() => {
               if (videoRef.current) {

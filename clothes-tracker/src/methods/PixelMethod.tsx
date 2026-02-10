@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type React from 'react'
 import { Container, Sprite } from '@pixi/react'
 
 interface PixelMethodProps {
