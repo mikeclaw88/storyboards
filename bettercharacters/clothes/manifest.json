@@ -1,0 +1,41 @@
+{
+  "items": [
+    {
+      "name": "Black Leather Jacket",
+      "slug": "black_leather_jacket",
+      "layers": {
+        "front": "black_leather_jacket_front.png",
+        "back": "black_leather_jacket_back.png"
+      }
+    },
+    {
+      "name": "Red Bobcut Hair",
+      "slug": "hair_bobcut_red",
+      "layers": {
+        "front": "hair_bobcut_red_front.png",
+        "back": "hair_bobcut_red_back.png"
+      }
+    },
+    {
+      "name": "Denim Jeans",
+      "slug": "high_waist_denim_jeans",
+      "layers": {
+        "front": "high_waist_denim_jeans_front.png"
+      }
+    },
+    {
+      "name": "Summer Dress",
+      "slug": "linen_summer_dress",
+      "layers": {
+        "front": "linen_summer_dress_front.png"
+      }
+    },
+    {
+      "name": "Sport Bra",
+      "slug": "sport_bra_lime",
+      "layers": {
+        "front": "sport_bra_lime_front.png"
+      }
+    }
+  ]
+}

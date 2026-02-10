@@ -26,9 +26,24 @@ app.use('/assets', express.static(ASSETS_DIR));
 
 // --- API ROUTES ---
 
-// GET Forest Data
-app.get('/api/hole1/forest', (req, res) => {
-    const filePath = path.join(ASSETS_DIR, 'hole1/forest_data.json');
+// List available holes (directories under /public/assets/ matching "hole*")
+app.get('/api/holes', (req, res) => {
+    try {
+        const entries = fs.readdirSync(ASSETS_DIR, { withFileTypes: true });
+        const holes = entries
+            .filter(e => e.isDirectory() && e.name.startsWith('hole'))
+            .map(e => e.name)
+            .sort();
+        res.json(holes);
+    } catch (err) {
+        console.error('Error listing holes:', err);
+        res.status(500).json({ error: 'Failed to list holes' });
+    }
+});
+
+// GET Forest Data for any hole
+app.get('/api/holes/:hole/forest', (req, res) => {
+    const filePath = path.join(ASSETS_DIR, req.params.hole, 'forest_data.json');
     if (fs.existsSync(filePath)) {
         res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
     } else {
@@ -36,12 +51,16 @@ app.get('/api/hole1/forest', (req, res) => {
     }
 });
 
-// POST Forest Data (Save)
-app.post('/api/hole1/forest', (req, res) => {
-    const filePath = path.join(ASSETS_DIR, 'hole1/forest_data.json');
+// POST Forest Data (Save) for any hole
+app.post('/api/holes/:hole/forest', (req, res) => {
+    const holeDir = path.join(ASSETS_DIR, req.params.hole);
+    if (!fs.existsSync(holeDir)) {
+        return res.status(404).json({ error: `Hole directory '${req.params.hole}' not found` });
+    }
+    const filePath = path.join(holeDir, 'forest_data.json');
     try {
         fs.writeFileSync(filePath, JSON.stringify(req.body, null, 2));
-        console.log('Saved forest_data.json');
+        console.log(`Saved ${req.params.hole}/forest_data.json`);
         res.json({ success: true });
     } catch (err) {
         console.error('Error saving forest data:', err);

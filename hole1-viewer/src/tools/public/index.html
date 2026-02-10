@@ -23,6 +23,12 @@
 
     <div class="controls">
         <select id="holeSelect"></select>
+        <select id="resSelect">
+            <option value="0">Native</option>
+            <option value="256">256</option>
+            <option value="512" selected>512</option>
+            <option value="1024">1024</option>
+        </select>
         <button class="btn btn-green" onclick="runBake()" id="bakeBtn" disabled>1. Run Bake</button>
         <button class="btn btn-blue" onclick="saveToDisk()" id="saveBtn" disabled>2. Save to Hole</button>
         <span id="status">Loading holes...</span>
@@ -84,13 +90,22 @@
         saveBtn.disabled = true;
     });
 
-    function loadHoleImage(hole) {
-        statusLabel.innerText = `Loading ${hole}/surface.png...`;
+    const SURFACE_EXTENSIONS = ['png', 'jpg', 'jpeg'];
+
+    function loadHoleImage(hole, extIndex = 0) {
+        if (extIndex >= SURFACE_EXTENSIONS.length) {
+            statusLabel.innerText = `Error: Could not find '${hole}/surface.{png,jpg,jpeg}'`;
+            bakeBtn.disabled = true;
+            return;
+        }
+
+        const ext = SURFACE_EXTENSIONS[extIndex];
+        statusLabel.innerText = `Loading ${hole}/surface.${ext}...`;
         bakeBtn.disabled = true;
 
         sourceImage = new Image();
         sourceImage.crossOrigin = "Anonymous";
-        sourceImage.src = `/assets/${hole}/surface.png`;
+        sourceImage.src = `/assets/${hole}/surface.${ext}`;
 
         sourceImage.onload = () => {
             statusLabel.innerText = `${hole} loaded. Ready to Bake.`;
@@ -101,8 +116,7 @@
         };
 
         sourceImage.onerror = () => {
-            statusLabel.innerText = `Error: Could not find '${hole}/surface.png'`;
-            bakeBtn.disabled = true;
+            loadHoleImage(hole, extIndex + 1);
         };
     }
 
@@ -115,10 +129,13 @@
         
         // Allow UI to update before freezing for calculation
         setTimeout(() => {
-            const width = canvas.width;
-            const height = canvas.height;
-            
-            ctx.drawImage(sourceImage, 0, 0);
+            const targetRes = parseInt(document.getElementById('resSelect').value);
+            const width = targetRes || sourceImage.width;
+            const height = targetRes || sourceImage.height;
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(sourceImage, 0, 0, width, height);
             const imgData = ctx.getImageData(0, 0, width, height);
             const pixels = imgData.data;
 
