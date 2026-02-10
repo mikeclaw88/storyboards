@@ -1,0 +1,145 @@
+import { useState, useRef, useEffect } from 'react'
+import { Stage } from '@pixi/react'
+import { Play, Pause, Layers, Bone, Scan, Edit3, Settings } from 'lucide-react'
+import { BoneMethod, PixelMethod, PoseMethod, ManualMethod } from './methods'
+import './index.css'
+
+// Placeholder for methods
+const METHODS = [
+  { id: 'bone', name: 'Bone Based (Spine)', icon: Bone },
+  { id: 'pixel', name: 'Pixel Based (Color)', icon: Scan },
+  { id: 'pose', name: 'Pose Estimation (MediaPipe)', icon: Layers },
+  { id: 'manual', name: 'Manual Keyframing', icon: Edit3 },
+]
+
+function App() {
+  const [activeMethod, setActiveMethod] = useState('bone')
+  const [isPlaying, setIsPlaying] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  
+  const [currentTime, setCurrentTime] = useState(0)
+
+  // Video path - relative to public (need to copy or symlink)
+  const videoSrc = '/assets/modelnoclothes.mp4' 
+
+  useEffect(() => {
+    let animationFrameId: number
+    const updateTime = () => {
+      if (videoRef.current) {
+        setCurrentTime(videoRef.current.currentTime)
+      }
+      animationFrameId = requestAnimationFrame(updateTime)
+    }
+    updateTime()
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [])
+
+  return (
+    <div className="flex h-screen w-full bg-slate-900 text-slate-100 overflow-hidden">
+      {/* Sidebar */}
+      <div className="w-64 bg-slate-800 p-4 border-r border-slate-700 flex flex-col gap-4">
+        <h1 className="text-xl font-bold mb-4">Clothes Tracker</h1>
+        
+        <div className="space-y-2">
+          <p className="text-sm text-slate-400 font-medium">Tracking Method</p>
+          {METHODS.map((method) => (
+            <button
+              key={method.id}
+              onClick={() => setActiveMethod(method.id)}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                activeMethod === method.id 
+                  ? 'bg-blue-600 text-white shadow-lg' 
+                  : 'hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              <method.icon size={18} />
+              <span className="text-sm font-medium">{method.name}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-auto pt-4 border-t border-slate-700">
+          <div className="flex items-center gap-2 text-slate-400 text-xs">
+            <Settings size={14} />
+            <span>Settings</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col">
+        {/* Toolbar */}
+        <div className="h-14 bg-slate-800 border-b border-slate-700 flex items-center px-4 justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm bg-slate-900 px-2 py-1 rounded">
+              {activeMethod.toUpperCase()} MODE
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+             {/* Add layer controls here */}
+          </div>
+        </div>
+
+        {/* Viewport */}
+        <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
+          <div className="relative w-full h-full max-w-4xl max-h-[80vh] aspect-video bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-2xl">
+            {/* Video Layer */}
+            <video 
+              ref={videoRef}
+              src={videoSrc}
+              className="absolute inset-0 w-full h-full object-contain z-0"
+              loop
+              muted
+              playsInline
+            />
+            
+            {/* Overlay Layer (Canvas/Pixi) */}
+            <div className="absolute inset-0 z-10 pointer-events-none">
+              <Stage width={800} height={450} options={{ backgroundAlpha: 0, resizeTo: videoRef.current || undefined }}>
+                {activeMethod === 'bone' && <BoneMethod videoRef={videoRef} currentTime={currentTime} isPlaying={isPlaying} />}
+                {activeMethod === 'pixel' && <PixelMethod videoRef={videoRef} targetColor={{r: 255, g: 0, b: 0}} />}
+                {activeMethod === 'pose' && <PoseMethod videoRef={videoRef} />}
+                {activeMethod === 'manual' && <ManualMethod currentTime={currentTime} isPlaying={isPlaying} />}
+              </Stage>
+            </div>
+
+            {/* UI Overlay for Manual/Interactive modes */}
+            {activeMethod === 'manual' && (
+              <div className="absolute inset-0 z-20">
+                {/* Interactive points */}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Timeline / Controls */}
+        <div className="h-24 bg-slate-800 border-t border-slate-700 p-4 flex items-center gap-4">
+          <button 
+            onClick={() => {
+              if (videoRef.current) {
+                if (isPlaying) videoRef.current.pause()
+                else videoRef.current.play()
+                setIsPlaying(!isPlaying)
+              }
+            }}
+            className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center transition-colors shadow-lg"
+          >
+            {isPlaying ? <Pause size={20} /> : <Play size={20} fill="currentColor" />}
+          </button>
+          
+          <div className="flex-1 bg-slate-700 h-2 rounded-full relative group cursor-pointer">
+            <div className="absolute top-0 left-0 h-full bg-blue-500 rounded-full w-1/3 group-hover:bg-blue-400 transition-colors"></div>
+            {/* Timeline scrubber handle */}
+            <div className="absolute top-1/2 left-1/3 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          </div>
+          
+          <div className="text-xs font-mono text-slate-400 w-20 text-right">
+            00:00:00
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default App
