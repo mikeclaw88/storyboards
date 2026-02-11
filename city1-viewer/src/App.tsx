@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Loader } from '@react-three/drei';
 import { CityScene } from './components/CityScene';
+import { MenuBar } from './components/MenuBar';
 
 export default function App() {
   return (
@@ -15,20 +16,7 @@ export default function App() {
         </Suspense>
       </Canvas>
       <Loader />
-      <div
-        style={{
-          position: 'absolute',
-          top: 16,
-          left: 16,
-          color: 'white',
-          fontSize: 18,
-          fontWeight: 700,
-          textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-          pointerEvents: 'none',
-        }}
-      >
-        City Viewer
-      </div>
+      <MenuBar />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { OrbitControls } from '@react-three/drei';
 import { CityTerrain } from './CityTerrain';
+import { BuildingMeshes } from './BuildingMeshes';
 
 export function CityScene() {
   return (
@@ -18,6 +19,9 @@ export function CityScene() {
 
       {/* Terrain */}
       <CityTerrain />
+
+      {/* Buildings (rendered after import) */}
+      <BuildingMeshes />
     </>
   );
 }

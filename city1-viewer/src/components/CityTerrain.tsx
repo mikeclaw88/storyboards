@@ -6,6 +6,7 @@ import { useCityStore } from '../stores/cityStore';
 export function CityTerrain() {
   const heightScale = useCityStore((s) => s.heightScale);
   const setTerrainReady = useCityStore((s) => s.setTerrainReady);
+  const processedHeightTexture = useCityStore((s) => s.processedHeightTexture);
 
   const detailMap = useLoader(TextureLoader, './assets/city/detailmap.jpeg');
   const heightMap = useLoader(TextureLoader, './assets/city/heightmap.jpeg');
@@ -19,6 +20,9 @@ export function CityTerrain() {
     setTerrainReady(true);
   }, [detailMap, heightMap, setTerrainReady]);
 
+  // Use processed heightmap if available, otherwise original
+  const activeHeightMap = processedHeightTexture ?? heightMap;
+
   // Terrain dimensions: preserve 1696:2528 aspect ratio
   // Short axis = 100, long axis = 100 * (2528/1696) ≈ 149.06
   const width = 100;
@@ -31,7 +35,7 @@ export function CityTerrain() {
       <planeGeometry args={[width, depth, segmentsX, segmentsY]} />
       <meshStandardMaterial
         map={detailMap}
-        displacementMap={heightMap}
+        displacementMap={activeHeightMap}
         displacementScale={heightScale}
         roughness={0.8}
         metalness={0.05}
