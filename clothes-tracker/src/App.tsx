@@ -60,18 +60,27 @@ function App() {
 
   // Video path - relative to public (need to copy or symlink)
   const videoSrc = '/assets/modelnoclothes.mp4' 
+  
+  // Dimensions
+  const [dimensions, setDimensions] = useState({ width: 800, height: 450 })
 
   useEffect(() => {
     let animationFrameId: number
     const updateTime = () => {
       if (videoRef.current) {
         setCurrentTime(videoRef.current.currentTime)
+        if (videoRef.current.videoWidth > 0 && (dimensions.width !== videoRef.current.videoWidth)) {
+             setDimensions({ 
+                 width: videoRef.current.videoWidth, 
+                 height: videoRef.current.videoHeight 
+             })
+        }
       }
       animationFrameId = requestAnimationFrame(updateTime)
     }
     updateTime()
     return () => cancelAnimationFrame(animationFrameId)
-  }, [])
+  }, [dimensions.width])
 
   return (
     <div className="flex h-screen w-full bg-slate-900 text-slate-100 overflow-hidden">
@@ -143,7 +152,12 @@ function App() {
             
             {/* Overlay Layer (Canvas/Pixi) */}
             <div className="absolute inset-0 z-10 pointer-events-none">
-              <Stage width={800} height={450} options={{ backgroundAlpha: 0, resizeTo: videoRef.current || undefined }}>
+              <Stage 
+                width={dimensions.width} 
+                height={dimensions.height} 
+                options={{ backgroundAlpha: 0 }}
+                className="w-full h-full"
+              >
                 {activeMethod === 'bone' && <BoneMethod videoRef={videoRef} currentTime={currentTime} isPlaying={isPlaying} attachments={attachments} />}
                 {activeMethod === 'pixel' && <PixelMethod videoRef={videoRef} targetColor={{r: 255, g: 0, b: 0}} />}
                 {activeMethod === 'pose' && <PoseMethod videoRef={videoRef} />}
