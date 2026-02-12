@@ -52,12 +52,17 @@ class InputMouse {
 
     var rect = c2d.getBoundingClientRect();
 
-    this.lastX = (evt.clientX - rect.left)/ c2d.offsetWidth * 1920
-    this.lastY = (evt.clientY- rect.top) / (c2d.offsetWidth/(1920/1080)) * 1080  
+    // Map screen coordinates to internal canvas resolution (540x960)
+    // Internal: 540x960
+    // Screen (CSS): 100vh height, width varies
+    
+    // Scale X: (screenX - rectLeft) / rectWidth * 540
+    // Scale Y: (screenY - rectTop) / rectHeight * 960
+    
+    this.lastX = (evt.clientX - rect.left) / rect.width * 540;
+    this.lastY = (evt.clientY - rect.top) / rect.height * 960;
     
     this.pointer.Position = new Vector(this.lastX, this.lastY)
-
-    
   }
 
   handleMouseDown = (evt: any) => {
