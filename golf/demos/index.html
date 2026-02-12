@@ -1,0 +1,123 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Golf Grass Research - Demo Launcher</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s;
+            border: 1px solid #3d3d3d;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: #4CAF50;
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #81C784;
+        }
+        .card p {
+            color: #ccc;
+            font-size: 0.9em;
+            height: 60px;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .tag {
+            display: inline-block;
+            background-color: #333;
+            color: #aaa;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌿 Golf Grass Research Demos</h1>
+    <div class="grid">
+        <!-- 1. Three Grass Demo -->
+        <div class="card">
+            <span class="tag">Three.js</span> <span class="tag">Instancing</span>
+            <h2>James-Smyth / three-grass-demo</h2>
+            <p>Stylized grass blowing in the wind. Uses InstancedMesh and custom shaders. Good reference for "BotW" style.</p>
+            <a href="/demos/three-grass-demo/dist/index.html" class="btn" target="_blank">Launch Demo</a>
+        </div>
+
+        <!-- 2. Terra -->
+        <div class="card">
+            <span class="tag">WebGL</span> <span class="tag">Procedural</span>
+            <h2>Spacejack / terra</h2>
+            <p>High performance raw WebGL procedural terrain and grass. Very optimized for scale.</p>
+            <a href="/demos/terra/index.html" class="btn" target="_blank">Launch Demo</a>
+        </div>
+
+        <!-- 3. Fur Shader -->
+        <div class="card">
+            <span class="tag">Three.js</span> <span class="tag">Shell Texture</span>
+            <h2>Kseniya7991 / fur-shader</h2>
+            <p>Uses the "shell texturing" technique (layers). Best for moss or short manicured putting greens.</p>
+            <a href="/demos/fur-shader/index.html" class="btn" target="_blank">Launch Demo</a>
+        </div>
+
+        <!-- 4. WebGL Flowers -->
+        <div class="card">
+            <span class="tag">WebGL 2</span> <span class="tag">Instancing</span>
+            <h2>Keaukraine / webgl-flowers</h2>
+            <p>Massive instancing demo with flowers and grass. Good benchmark for mobile performance.</p>
+            <a href="/demos/webgl-flowers/index.html" class="btn" target="_blank">Launch Demo</a>
+        </div>
+
+        <!-- 5. Threex.grass -->
+        <div class="card">
+            <span class="tag">Three.js</span> <span class="tag">Legacy</span>
+            <h2>JeromeEtienne / threex.grass</h2>
+            <p>Older implementation. Good for historical reference but likely less performant than modern instancing.</p>
+            <a href="/demos/threex.grass/examples/demo.html" class="btn" target="_blank">Launch Demo</a>
+        </div>
+        
+        <!-- 6. GodotGrass -->
+        <div class="card">
+            <span class="tag">Godot</span> <span class="tag">Source Only</span>
+            <h2>2Retr0 / GodotGrass</h2>
+            <p>Godot project source. Cannot run in browser directly, but shader logic is valuable for porting.</p>
+            <a href="https://github.com/2Retr0/GodotGrass" class="btn" target="_blank">View Source</a>
+        </div>
+    </div>
+</body>
+</html>
