@@ -1,0 +1,201 @@
+#snake {
+  position: fixed;
+  top: 0;
+}
+
+.snakecubemove {
+  -moz-pointer-events: none;
+  -webkit-pointer-events: none;
+  pointer-events: none;
+  xbackground: #b80;
+}
+
+.snakecubemove {
+  transform-origin: 50% 50%;
+  position: fixed;
+  width: 8vmin;
+  height: 8vmin;
+  transition: transform .15s linear;
+}
+
+.mobile .snakecubemove {
+  transition: transform .08s linear;
+}
+
+.snakeshadow {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,.2);
+  transform: translateX(14%) translateY(14%) translateZ(-.25vh);
+}
+
+.mobile .snakeshadow {
+  display: none;
+}
+
+.snakegrass {
+  position: fixed;
+  width: 10vmin;
+  height: 6vmin;
+  background: url(images/grassblades.png);
+  background-size: 10vmin 6vmin;
+  transform: translateX(-1vmin) translateY(6vmin) translateZ(3vmin) rotateX(-70deg);
+  transition: .12s linear;
+}
+
+.mobile .snakegrass {
+  display: none;
+  transition: none;
+}
+
+.cube.snakecube {
+  width: 100%;
+  height: 100%;
+  transition: transform .1s linear, width .5s, height .5s;
+}
+
+.mobile .snakecube {
+  transiton: none;
+}
+
+.cube.snakecube.bright {
+  transform: scale(.2) scaleZ(.2);
+  margin: 5vmin;
+}
+
+.cube.snakecube > div {
+  transition: background .5s;
+}
+
+.cube.snakecube.bright > div {
+  background: red !important;
+}
+
+.cube.snakecube > div {
+  box-shadow: 0 0 0 .2vmin #000 inset;
+  text-align: center;
+  background: #b80;
+  background-size: 500%;
+}
+
+.mobile .cube.snakecube > div {
+  box-shadow: none;
+}
+
+.cube.snakecube .u {
+  background: #fb3;
+}
+
+.mobile .cube.snakecube .u {
+  background: #fb3;
+}
+
+.cube.snakecube .f {
+
+}
+
+.cube.snakecube .tongue {
+  background: none;
+  box-shadow: none;
+  color: red;
+  font: 5vmin/4vmin arial;
+  text-align: center;
+  transform: rotateZ(180deg) translateY(-4vmin) translateZ(4vmin);
+}
+
+.mouth {
+  font: 5vmin/3vmin a;
+}
+
+.cube.snakecube .u.eyes {
+  background: url(images/eyes.png) no-repeat center center #fb3;
+  background-size: 75%;
+}
+
+#snakecubemove0 {
+  -moz-pointer-events: all;
+  -webkit-pointer-events: all;
+  pointer-events: all;
+}
+
+#snakecube0 {
+  -moz-pointer-events: none;
+  -webkit-pointer-events: none;
+  pointer-events: none;
+}
+
+.inbounds .headcontrol {
+  width: 10vmin;
+  height: 10vmin;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.headcontrol {
+  width: 50vmin;
+  height: 50vmin;
+  transform-origin: 0 0;
+  left: 5vmin;
+  top: 5vmin;
+  position: fixed;
+  xbackground: blue;
+  xborder: 1vmin solid #fff;
+  opacity: .2;
+}
+
+
+.inbounds .headcontrol.left {
+  width: 50vmin;
+  left: -50vmin;
+  transform: none;
+}
+
+.headcontrol.left {
+  transform: rotate(135deg);
+}
+
+.inbounds .headcontrol.top {
+  height: 50vmin;
+  top: -50vmin;
+  transform: none;
+}
+
+.headcontrol.top {
+  transform: rotate(-135deg);
+}
+
+.inbounds .headcontrol.right {
+  width: 50vmin;
+  left: 10vmin;
+  transform: none;
+}
+
+.headcontrol.right {
+  transform: rotate(-45deg);
+}
+
+.inbounds .headcontrol.bottom {
+  height: 50vmin;
+  top: 10vmin;
+  transform: none;
+}
+
+.headcontrol.bottom {
+  transform: rotate(45deg);
+}
+
+
+.cube.snakecube.green > div {
+  background-color: #1b8e36
+}
+
+.cube.snakecube.green .u,
+.cube.snakecube.green .u.eyes {
+  background-color: #3caf57
+}
+
+.cube.snakecube.green .tongue {
+  background: none;
+}

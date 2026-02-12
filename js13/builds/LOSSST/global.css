@@ -1,0 +1,196 @@
+* {
+  margin: 0;
+  padding: 0;
+  font: 2.5.5vmin/5.5vmin arial,sans-serif;
+  vertical-align: middle;
+  box-sizing: border-box;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  backface-visibility: hidden;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  contain: strict;
+}
+
+body {
+  background-image: url(images/sky.jpg);
+  background-size: 100vw;
+  background-position: center -30vmin;
+  transition: background-position .5s linear;
+}
+
+body.mobile {
+  transition: none;
+}
+
+#perspective {
+  width: 0;
+  height: 0;
+  perspective: 220vmin;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}
+
+#perspective * {
+  transform-style: preserve-3d;
+  z-index: 1;
+}
+
+.cube {
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+.cube > div {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+}
+
+.cube.snakecube .u {
+  transform: translateZ(8vmin);
+}
+
+.cube.snakecube .l {
+  transform: translateX(8vmin) translateY(8vmin) translateZ(8vmin) rotateX(-90deg) rotateY(90deg);
+  transform-origin: top left;
+}
+
+.cube.snakecube .r {
+  transform: rotateY(-90deg);
+  transform-origin: top left;
+}
+
+.cube.snakecube .f {
+  transform: translateY(8vmin) translateZ(8vmin) rotateX(-90deg);
+  transform-origin: top left;
+}
+
+.cube.snakecube .b {
+  transform: translateZ(8vmin) rotateX(90deg) translateY(-8vmin);
+  transform-origin: top left;
+}
+
+
+/*button {
+  font: 3vmin/5vmin arial;
+  position: fixed;
+  bottom: 0;
+  z-index: 2;
+  transform: translateZ(1000px);
+  min-width: 5vmin;
+}*/
+
+#mask {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: none;
+  transform: translateZ(1vh);
+}
+
+#play {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  font: 20vh arial;
+  top: 0;
+  left: 0;
+}
+
+img {
+  position: fixed;
+  left: -10px;
+}
+
+#controls {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  //width: 100vw;
+  //height: 100vh;
+  background: url(images/stick.png) no-repeat -500px -500px;
+  display: none;
+}
+
+.mobile #controls {
+  //display: block;
+}
+
+#egg { 
+  position: fixed;
+}
+
+#egg div {
+  width: 40vmin;
+  height: 25vmin;
+  background: url(images/egg_0.png) no-repeat 0 0;
+  background-size: auto 100%;
+  transform: rotateX(-45deg);
+  transform-origin: bottom center;
+}
+
+#egg.open div {
+  width: 60vmin;
+  background: url(images/egg_1.png) no-repeat 0 0;
+  background-size: auto 100%;
+  margin-left: -30px;
+}
+
+#quit {
+  position: fixed;
+  top: 10px;
+  right: 20px;
+  font-size: 40px;
+  z-index: 2;
+  font-weight: bold;
+  -webkit-text-stroke: 1px #FFF;
+  text-stroke: 1px #FFF;
+  text-decoration: none;
+  color: #000;
+  font-family: arial;
+}
+
+#quit span {
+  display: none;
+}
+
+#quit:hover span {
+  display: inline-block;
+  position: fixed;
+  top: 45px;
+  right: 10px;
+  z-index: 2;
+  font-size: 25px;
+  color: #fff;
+  -webkit-text-stroke: 1px #000;
+  text-stroke: 1px #000;
+}
+
+.hint {
+  position: fixed;
+  width: 30vmin;
+  height: 30vmin;
+  transform-origin: center bottom;
+  transform: translateZ(8vmin) rotateX(-45deg);
+  opacity: 0;
+  transition: opacity 1s;
+}
+
+.hint.started {
+  opacity: 1;
+}

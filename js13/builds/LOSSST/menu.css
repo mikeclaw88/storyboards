@@ -1,0 +1,67 @@
+#menu {
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  position: fixed;
+  color: #fff;
+  text-shadow: -1px -1px 3px #777, -2px -2px 3px #777, -3px -3px 3px #777;
+  text-align: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 3;
+  perspective: 26vmin;
+}
+
+.menuinner {
+  transform-origin: center center;
+  transform: translateY(24vh) rotateX(-11deg);
+}
+
+.menuinner_levels {
+  padding: 50px 0 0;
+}
+
+#menu h1 {
+  font: 20vmin/25vmin arial;
+}
+
+#menu span {
+  font: 10vmin/17vmin arial;
+}
+
+#menu span:hover{
+  color: #9bf;
+}
+
+#menu button {
+  display: inline-block;
+  vertical-align: top;
+  width: 15vw;
+  height: 10vw;
+  line-height: 8vw;
+  border: 1vw solid #fff;
+  color: #fff;
+  font-size: 4vw;
+  textt-align: center;
+  margin: 2vw;
+  background: #222;
+}
+
+#menu a {
+  text-shadow: none;
+}
+
+
+#menu button:hover {
+  color: #9bf;
+  border-color: #9bf;
+}
+
+@media (orientation: portrait) {
+  
+  #menu button {
+    width: 15vh;
+    height: 10vh;
+    font-size: 4vh;
+  }
+}
