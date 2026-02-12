@@ -488,10 +488,10 @@ class GameState implements State {
 
 
     // Team middle lines
-    let x = drawEngine.canvasWidth / 2 - 2
-    drawEngine.drawLine(new Vector(x, 0), new Vector(x, drawEngine.canvasHeight), { stroke: 'red', fill: '' })
-    x = x + 4
-    drawEngine.drawLine(new Vector(x, 0), new Vector(x, drawEngine.canvasHeight), { stroke: 'blue', fill: '' })
+    let y = drawEngine.canvasHeight / 2 - 2
+    drawEngine.drawLine(new Vector(0, y), new Vector(drawEngine.canvasWidth, y), { stroke: 'red', fill: '' })
+    y = y + 4
+    drawEngine.drawLine(new Vector(0, y), new Vector(drawEngine.canvasWidth, y), { stroke: 'blue', fill: '' })
 
 
     // Blood and death layer
@@ -1149,21 +1149,24 @@ class GameState implements State {
 
 
     // Gold bank
-    this.btnGold = new Button(drawEngine.canvasWidth * .13, posY, size, size, "💰", "");
+    this.btnGold = new Button(drawEngine.canvasWidth * 0.1, posY, size, size, "💰", "");
     this.btnGold.clickCB = () => {
     };
     this.placeButtons.push(this.btnGold);
 
 
-    // Units 
     let count = 0;
-    let refX = drawEngine.canvasWidth / 5.4
+    // Calculate total width of all buttons to center them
+    const unitButtonCount = unitTypes.length; // 6 units
+    const totalButtonsWidth = (size * 1.2) * unitButtonCount; // size + margin
+    // Start X = (Width - TotalWidth) / 2 + (Half Button Size because position is centered)
+    let refX = (drawEngine.canvasWidth - totalButtonsWidth) / 2 + size * 0.6;
 
 
     for (const unitType of unitTypes) {
 
       const cost = gameDatabase.getDataValues(unitType).cost
-      const button = this.createUnitButton(refX - size / 2 + (size * 1.2) * count++, posY, size, unitType, "", `Place ${unitNames[unitType]} for ${cost}$`);
+      const button = this.createUnitButton(refX + (size * 1.2) * count++, posY, size, unitType, "", `Place ${unitNames[unitType]} for ${cost}$`);
 
       if (unitType == EntityType.Troop) this.btnTroop = button
       if (unitType == EntityType.Testudo) this.btnTestudo = button
@@ -1177,7 +1180,7 @@ class GameState implements State {
 
 
     // Clear
-    this.btnClear = new Button(refX - size / 2 + (size * 1.2) * count++, posY, size, size, "🗑", "Clear");
+    this.btnClear = new Button(drawEngine.canvasWidth * 0.9, posY, size, size, "🗑", "Clear");
     this.btnClear.visible = true
     this.btnClear.clickCB = () => {
 
