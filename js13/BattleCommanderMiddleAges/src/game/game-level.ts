@@ -98,8 +98,8 @@ export class Level {
     init(level: number) {
 
 
-        this.playerPosition = new Vector(drawEngine.canvasWidth * 2 / 10, drawEngine.canvasHeight / 2)
-        this.enemyPosition = new Vector(drawEngine.canvasWidth * .82, drawEngine.canvasHeight * .6)
+        this.playerPosition = new Vector(drawEngine.canvasWidth / 2, drawEngine.canvasHeight * 0.8) // Bottom (Player)
+        this.enemyPosition = new Vector(drawEngine.canvasWidth / 2, drawEngine.canvasHeight * 0.2) // Top (Enemy)
 
         this.levelIndex = level
 

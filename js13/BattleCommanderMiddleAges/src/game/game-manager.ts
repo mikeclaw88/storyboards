@@ -235,8 +235,9 @@ export const manageUnitsCollision = (units: Unit[], dt: number, damageGlobalFact
       unit.Position.add(new Vector(0, -unit.Size.y / 2));
       unit.Velocity.scale(0);
     }
-    // top
-    if (unit.Position.y - unit.Size.y < 100) {
+    // top (adjust for 0-based top in vertical mode, but respect UI if needed)
+    // Actually, in vertical mode we want full height, maybe 0.
+    if (unit.Position.y - unit.Size.y < 0) {
       unit.Position.add(new Vector(0, unit.Size.y / 2));
       unit.Velocity.scale(0);
     }

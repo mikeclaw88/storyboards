@@ -370,19 +370,25 @@ class GameState implements State {
 
     let side = Math.sqrt(count);
 
-    let ref = new Vector([0, -1, -2][team] * side / 2, -side / 2).scale(size.length());
-    // ref.add(new Vector(-side*size.x, -side*size.y))
-    let p = new Vector(0, 0); // new Vector(rand(10, 200), 0).rotate(rand(0, Math.PI * 2))
+    // Flip logic for vertical spawn
+    let ref = new Vector(-side * size.x / 2, [0, -1, -2][team] * side / 2).scale(1); 
+    // This was hardcoded for horizontal. Let's make it simple grid around center
+    
+    let p = new Vector(0, 0); 
     let row = 0, col = 0;
+    
+    // Center the formation horizontally
+    let startX = - (side * size.x) / 2;
+    
     for (let index = 0; index < count; index++) {
 
-      let enemy = this.newUnit(position.clone().add(ref).add(p), sizeFactor, team, type); // 
+      let offset = new Vector(startX + col * size.x, row * size.y);
+      let enemy = this.newUnit(position.clone().add(offset), sizeFactor, team, type); 
 
       this.units.push(enemy);
       if (++col >= side) {
         col = 0, row++;
       }
-      p = new Vector(col * size.length(), row * size.length());
     }
   }
 
@@ -693,11 +699,11 @@ class GameState implements State {
 
 
     // top bar
-    drawEngine.drawRectangle(new Vector(0, 0), new Vector(drawEngine.canvasWidth, 110), { stroke: transparent, fill: 'rgb(150,0,150,.3)' })
+    drawEngine.drawRectangle(new Vector(0, drawEngine.canvasHeight - 110), new Vector(drawEngine.canvasWidth, 110), { stroke: transparent, fill: 'rgb(150,0,150,.3)' })
 
     // team bars
-    drawEngine.drawBar(drawEngine.canvasWidth / 4, 110, this.teamAlpha.length, this.gameData.teamAlphaBeginCount, drawEngine.canvasWidth / 2, '#500', '#f00', 12, false)
-    drawEngine.drawBar(drawEngine.canvasWidth * 3 / 4, 110, this.teamBravo.length, this.gameData.teamBravoBeginCount, drawEngine.canvasWidth / 2, '#005', '#00f', 12, true)
+    drawEngine.drawBar(drawEngine.canvasWidth / 4, 30, this.teamAlpha.length, this.gameData.teamAlphaBeginCount, drawEngine.canvasWidth / 2, '#500', '#f00', 12, false)
+    drawEngine.drawBar(drawEngine.canvasWidth * 3 / 4, 30, this.teamBravo.length, this.gameData.teamBravoBeginCount, drawEngine.canvasWidth / 2, '#005', '#00f', 12, true)
 
     // Standarte
     let size = new Vector(200, 105)
@@ -937,7 +943,8 @@ class GameState implements State {
    * @returns 
    */
   private isPlaceUnitAllowed(position: Vector): boolean {
-    return position.x < drawEngine.canvasWidth / 2 && position.y > 120 && position.x > 16 && position.y < drawEngine.canvasHeight - 16;
+    // Only in bottom half, but above the UI bar (canvasHeight - 120)
+    return position.y > drawEngine.canvasHeight / 2 && position.y < drawEngine.canvasHeight - 120;
   }
 
 
@@ -1116,7 +1123,7 @@ class GameState implements State {
 
     let size = 60;
 
-    const posY = 10 + size / 2 //drawEngine.canvasHeight - size / 2;
+    const posY = drawEngine.canvasHeight - 60; // Move to bottom (120 = bar height + margin)
 
     let btnExit = new Button(40, 40, size, size, "↩", "Back", 60);
     btnExit.visible = true

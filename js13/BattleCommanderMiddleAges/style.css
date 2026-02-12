@@ -1,5 +1,8 @@
 #c2d {
-    width: min(100vw, calc(100vh * 16/9));
+    /* 9:16 vertical aspect ratio, fitted to viewport height */
+    width: auto;
+    height: 100vh;
+    aspect-ratio: 9/16;
     position: absolute;
     image-rendering: pixelated; /* You definitely want this if you are doing pixel art */
     image-rendering: crisp-edges;
@@ -13,6 +16,5 @@ html, body {
     justify-content: center;
     align-items: center;
     height: 100%;
+    overflow: hidden;
 }
-
-
