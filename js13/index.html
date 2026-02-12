@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS13k Game Research</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #d32f2f;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background-color: #2d2d2d;
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s;
+            border: 1px solid #3d3d3d;
+            display: flex;
+            flex-direction: column;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: #d32f2f;
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #ef5350;
+            font-size: 1.2em;
+        }
+        .card p {
+            color: #ccc;
+            font-size: 0.9em;
+            flex-grow: 1;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #d32f2f;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .btn:hover {
+            background-color: #b71c1c;
+        }
+        .tag {
+            display: inline-block;
+            background-color: #333;
+            color: #aaa;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-bottom: 10px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>JS13k Game Research</h1>
+    <div class="grid">
+        <!-- 1. Battle Commander -->
+        <div class="card">
+            <div><span class="tag">Strategy</span> <span class="tag">Sprites</span></div>
+            <h2>Battle Commander: Middle Ages</h2>
+            <p>The target reference. RTS style game with swappable assets.</p>
+            <a href="BattleCommanderMiddleAges/index.html" class="btn">Launch (Check Build)</a>
+        </div>
+
+        <!-- 2. Space Huggers -->
+        <div class="card">
+            <div><span class="tag">Platformer</span> <span class="tag">Roguelike</span></div>
+            <h2>Space Huggers</h2>
+            <p>Run and gun roguelike. Procedural levels, destructible environments.</p>
+            <a href="SpaceHuggers/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 3. Q1K3 -->
+        <div class="card">
+            <div><span class="tag">FPS</span> <span class="tag">3D</span></div>
+            <h2>Q1K3</h2>
+            <p>Quake clone in 13kb. Incredible technical achievement.</p>
+            <a href="Q1K3/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 4. Underrun -->
+        <div class="card">
+            <div><span class="tag">Shooter</span> <span class="tag">Atmospheric</span></div>
+            <h2>Underrun</h2>
+            <p>Twin stick shooter with dynamic lighting and spooky atmosphere.</p>
+            <a href="Underrun/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 5. Bounce Back -->
+        <div class="card">
+            <div><span class="tag">Adventure</span> <span class="tag">Zelda-like</span></div>
+            <h2>Bounce Back</h2>
+            <p>boomerang throwing adventure game.</p>
+            <a href="BounceBack/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 6. Callisto -->
+        <div class="card">
+            <div><span class="tag">Action</span> <span class="tag">3D</span></div>
+            <h2>Captain Callisto</h2>
+            <p>3D Space adventure. Uses similar low-poly style.</p>
+            <a href="js13k-callisto/index.html" class="btn">Launch (Needs Build)</a>
+        </div>
+
+        <!-- 7. Radius Raid -->
+        <div class="card">
+            <div><span class="tag">Shooter</span> <span class="tag">Space</span></div>
+            <h2>Radius Raid</h2>
+            <p>Space themed shoot 'em up with many enemy types.</p>
+            <a href="radius-raid-js13k/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 8. Black Hole Square -->
+        <div class="card">
+            <div><span class="tag">Puzzle</span></div>
+            <h2>Black Hole Square</h2>
+            <p>Space themed puzzle game.</p>
+            <a href="black-hole-square/index.html" class="btn">Launch (Needs Build)</a>
+        </div>
+        
+        <!-- 9. LOSSST -->
+        <div class="card">
+            <div><span class="tag">Puzzle</span> <span class="tag">Snake</span></div>
+            <h2>LOSSST</h2>
+            <p>Snake in space 3D puzzle.</p>
+            <a href="LOSSST/index.html" class="btn">Launch</a>
+        </div>
+
+        <!-- 10. Elematter -->
+        <div class="card">
+            <div><span class="tag">Tower Defense</span></div>
+            <h2>Elematter</h2>
+            <p>Simple tower defense game.</p>
+            <a href="elematter-js13k/index.html" class="btn">Launch</a>
+        </div>
+    </div>
+</body>
+</html>
