@@ -1,5 +1,2 @@
-you are missing a few: 
 
-https://github.com/KilledByAPixel
-
-https://github.com/allenu/YokosukaJS
+find the source to: https://js13kgames.com/2019/games/dwarfs-there-and-back-again#play
