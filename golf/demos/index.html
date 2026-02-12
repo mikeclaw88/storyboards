@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Golf Grass Research - Demo Launcher</title>
+    <title>Golf Grass Research - Live Builds</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -54,7 +54,12 @@
             font-weight: bold;
             margin-top: 10px;
         }
-        .btn:hover {
+        .btn.disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .btn:hover:not(.disabled) {
             background-color: #45a049;
         }
         .tag {
@@ -69,55 +74,48 @@
     </style>
 </head>
 <body>
-    <h1>🌿 Golf Grass Research Demos</h1>
+    <h1>🌿 Golf Grass Research - Live Builds</h1>
     <div class="grid">
         <!-- 1. Three Grass Demo -->
         <div class="card">
             <span class="tag">Three.js</span> <span class="tag">Instancing</span>
-            <h2>James-Smyth / three-grass-demo</h2>
-            <p>Stylized grass blowing in the wind. Uses InstancedMesh and custom shaders. Good reference for "BotW" style.</p>
-            <a href="/demos/three-grass-demo/dist/index.html" class="btn" target="_blank">Launch Demo</a>
+            <h2>Three Grass Demo</h2>
+            <p>Stylized grass blowing in the wind. (James-Smyth)</p>
+            <a href="/builds/three-grass-demo/index.html" class="btn" target="_blank">Launch</a>
         </div>
 
         <!-- 2. Terra -->
         <div class="card">
             <span class="tag">WebGL</span> <span class="tag">Procedural</span>
-            <h2>Spacejack / terra</h2>
-            <p>High performance raw WebGL procedural terrain and grass. Very optimized for scale.</p>
-            <a href="/demos/terra/index.html" class="btn" target="_blank">Launch Demo</a>
+            <h2>Terra</h2>
+            <p>High performance raw WebGL procedural terrain. (Spacejack)</p>
+            <a href="/builds/terra/index.html" class="btn" target="_blank">Launch</a>
         </div>
 
         <!-- 3. Fur Shader -->
         <div class="card">
             <span class="tag">Three.js</span> <span class="tag">Shell Texture</span>
-            <h2>Kseniya7991 / fur-shader</h2>
-            <p>Uses the "shell texturing" technique (layers). Best for moss or short manicured putting greens.</p>
-            <a href="/demos/fur-shader/index.html" class="btn" target="_blank">Launch Demo</a>
+            <h2>Fur Shader</h2>
+            <p>Shell texturing technique for moss/short grass.</p>
+            <a href="/builds/fur-shader/index.html" class="btn" target="_blank">Launch</a>
         </div>
 
         <!-- 4. WebGL Flowers -->
         <div class="card">
             <span class="tag">WebGL 2</span> <span class="tag">Instancing</span>
-            <h2>Keaukraine / webgl-flowers</h2>
-            <p>Massive instancing demo with flowers and grass. Good benchmark for mobile performance.</p>
-            <a href="/demos/webgl-flowers/index.html" class="btn" target="_blank">Launch Demo</a>
+            <h2>WebGL Flowers</h2>
+            <p>Massive instancing demo. (Build Failed - Source Only)</p>
+            <a href="#" class="btn disabled">Build Failed</a>
         </div>
 
         <!-- 5. Threex.grass -->
         <div class="card">
             <span class="tag">Three.js</span> <span class="tag">Legacy</span>
-            <h2>JeromeEtienne / threex.grass</h2>
-            <p>Older implementation. Good for historical reference but likely less performant than modern instancing.</p>
-            <a href="/demos/threex.grass/examples/demo.html" class="btn" target="_blank">Launch Demo</a>
+            <h2>Threex.Grass</h2>
+            <p>Older implementation. Good for historical reference.</p>
+            <a href="/builds/threex.grass/examples/demo.html" class="btn" target="_blank">Launch</a>
         </div>
         
-        <!-- 6. GodotGrass -->
-        <div class="card">
-            <span class="tag">Godot</span> <span class="tag">Source Only</span>
-            <h2>2Retr0 / GodotGrass</h2>
-            <p>Godot project source. Cannot run in browser directly, but shader logic is valuable for porting.</p>
-            <a href="https://github.com/2Retr0/GodotGrass" class="btn" target="_blank">View Source</a>
-        </div>
     </div>
 </body>
 </html>
