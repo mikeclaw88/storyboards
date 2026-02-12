@@ -691,66 +691,34 @@ class GameState implements State {
   private drawUI() {
 
 
-    // Top bar buttons visibility
-    if (this.battleStatus == BattleStatus.figth) {
-      this.btnClear.visible = false
-    }
+    // Draw UI
+    const scale = drawEngine.canvasWidth / 540; // Base scale on 540 width
+    
+    // Top Bar Background
+    drawEngine.drawRectangle(new Vector(0, 0), new Vector(drawEngine.canvasWidth, 80 * scale), { stroke: transparent, fill: 'rgb(0,0,0,.5)' })
 
+    // Team Power Bars (Scaled)
+    const barWidth = drawEngine.canvasWidth * 0.4;
+    const barHeight = 15 * scale;
+    const barY = 40 * scale;
+    
+    drawEngine.drawBar(drawEngine.canvasWidth * 0.25, barY, this.teamAlpha.length, this.gameData.teamAlphaBeginCount, barWidth, '#500', '#f00', barHeight, false)
+    drawEngine.drawBar(drawEngine.canvasWidth * 0.75, barY, this.teamBravo.length, this.gameData.teamBravoBeginCount, barWidth, '#005', '#00f', barHeight, true)
 
-
-    // top bar
-    drawEngine.drawRectangle(new Vector(0, drawEngine.canvasHeight - 110), new Vector(drawEngine.canvasWidth, 110), { stroke: transparent, fill: 'rgb(150,0,150,.3)' })
-
-    // team bars
-    drawEngine.drawBar(drawEngine.canvasWidth / 4, 30, this.teamAlpha.length, this.gameData.teamAlphaBeginCount, drawEngine.canvasWidth / 2, '#500', '#f00', 12, false)
-    drawEngine.drawBar(drawEngine.canvasWidth * 3 / 4, 30, this.teamBravo.length, this.gameData.teamBravoBeginCount, drawEngine.canvasWidth / 2, '#005', '#00f', 12, true)
-
-    // Standarte
-    let size = new Vector(200, 105)
-    drawEngine.drawRectangle(new Vector(drawEngine.canvasWidth / 2 - size.x / 2, 0), size, { stroke: '#000', fill: '#808' })
-
-
-
-
-    // Score stars
-    if (this.battleStatus == BattleStatus.figth && this.teamAlpha.length > 0) {
-
-      if (this.level.stars == 0 && this.teamBravo.length == 0) {
-        this.level.stars = 1
-        this.sendStar()
-      }
-    }
-
-
-    drawEngine.drawText(Array(this.level.stars).fill('⭐').join(''), 80, drawEngine.canvasWidth * .9, 75)
-
-
-
+    // Center Timer / Score
     const xCenter = drawEngine.canvasWidth / 2;
-
-    drawEngine.drawText('Level ' + (this.level.levelIndex + 1), 40, drawEngine.canvasWidth * .07, 70);
-
-    // drawEngine.drawText('' + time.toFixed(0) + ' : ' + frame + ' : ' + (frame / time).toFixed(1), 40, 0, 50, undefined, 'left');
-    drawEngine.drawText(this.teamAlpha.length + ' vs ' + this.teamBravo.length, 70, drawEngine.canvasWidth * .75, 80);
-    // drawEngine.drawText('Kills: ' + this.kills.alpha, 30, drawEngine.canvasWidth * .75, 95, '#ff0');
-
-    // drawEngine.drawText('Cost: ' + this.gameData.teamAlphaCost + ' vs ' + this.gameData.teamBravoCost + '    Score: ' + (this.gameData.teamBravoCost - this.gameData.teamAlphaCost), 30, drawEngine.canvasWidth * .75, 95);
-
-
-
-
-    if (this.battleStatus != BattleStatus.prepare) {
-      drawEngine.drawText('Kills: ' + this.kills.alpha, 30, drawEngine.canvasWidth * .5, 50, '#ff0')
-
-      // drawEngine.drawText(this.gameData.kills + '', 50, drawEngine.canvasWidth * .5, 50)
-      // drawEngine.drawText(this.gameData.teamBravoCost - this.gameData.teamAlphaCost + '', 50, drawEngine.canvasWidth * .5, 50)
-      // if (this.data.b > 0 && this.data.a > 0)
-      // drawEngine.drawText((this.data.a / this.data.b).toFixed(2) + '', 50, drawEngine.canvasWidth * .5, 50)
-    }
-
     if (this.battleStatus == BattleStatus.figth) {
-      drawEngine.drawText('' + this.formatTimeRemaining((-1 * this.level.levelTimer.get())), 40, xCenter, 100);
+      drawEngine.drawText('' + this.formatTimeRemaining((-1 * this.level.levelTimer.get())), 30 * scale, xCenter, 50 * scale);
+    } else {
+       drawEngine.drawText('VS', 30 * scale, xCenter, 50 * scale);
     }
+    
+    // Bottom Deck Area Background
+    const deckHeight = 140 * scale;
+    drawEngine.drawRectangle(new Vector(0, drawEngine.canvasHeight - deckHeight), new Vector(drawEngine.canvasWidth, deckHeight), { stroke: '#333', fill: '#222' })
+
+    // Buttons are drawn by their own _draw method, but we need to ensure their positions are updated if we want them dynamic. 
+    // Since createGameButtons sets fixed positions, we rely on that.
 
     this.buttons.forEach((button: Button) => {
       button._draw(drawEngine.context)
@@ -1121,9 +1089,9 @@ class GameState implements State {
     this.buttons = []
     this.placeButtons = []
 
-    let size = 60;
-
-    const posY = drawEngine.canvasHeight - 60; // Move to bottom (120 = bar height + margin)
+    const scale = drawEngine.canvasWidth / 540;
+    const size = 60 * scale; // Scale button size
+    const posY = drawEngine.canvasHeight - 60 * scale;
 
     let btnExit = new Button(40, 40, size, size, "↩", "Back", 60);
     btnExit.visible = true
