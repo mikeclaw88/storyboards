@@ -253,17 +253,12 @@
                 role: "Protagonist",
                 health: 100,
                 speed: "Fast",
-                moves: ["Punch", "Kick", "Uppercut"],
+                moves: [
+                    { name: "Punch", video: "assets/videos/Alex_Punching.mp4" },
+                    { name: "Kick", video: "assets/videos/Alex_Kicking.mp4" },
+                    { name: "Walk", video: "assets/videos/Alex_Walking.mp4" }
+                ],
                 desc: "River City Ransom style main character."
-            },
-            {
-                name: "Ryan",
-                image: "images/ryan.png",
-                role: "Enemy",
-                health: 50,
-                speed: "Normal",
-                moves: ["Punch", "Kick"],
-                desc: "Generic bad guy thug."
             }
         ];
 
@@ -314,9 +309,17 @@
                         <div class="stats-grid">
                             <div class="stat-item"><span class="stat-label">Health</span> <span class="stat-value">${char.health}</span></div>
                             <div class="stat-item"><span class="stat-label">Speed</span> <span class="stat-value">${char.speed}</span></div>
-                            <div class="stat-item" style="grid-column: span 2;">
-                                <span class="stat-label">Moves</span> 
-                                <span class="stat-value" style="font-size:0.8em">${char.moves.join(', ')}</span>
+                            
+                            <div class="stat-item" style="grid-column: span 2; display:block;">
+                                <span class="stat-label">Moves</span>
+                                <div style="display:flex; gap:10px; margin-top:5px;">
+                                    ${char.moves.map(m => `
+                                        <div style="text-align:center; background:#333; padding:5px; border-radius:4px;">
+                                            <video src="${m.video}" loop autoplay muted playsinline style="width:48px; height:48px; image-rendering:pixelated;"></video>
+                                            <div style="font-size:0.7em; color:#ddd;">${m.name}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
                             </div>
                         </div>
                     `;
