@@ -233,8 +233,8 @@ class GameState implements State {
         if (unitType == EntityType.Testudo) this.btnTestudo.enabled = false
         if (unitType == EntityType.Archer) this.btnArcher.enabled = false
         if (unitType == EntityType.Knight) this.btnKnight.enabled = false
-        if (unitType == EntityType.Artillery) this.btnArtillery.enabled = false
-        if (unitType == EntityType.Cavalry) this.btnCavalry.enabled = false
+        if (unitType == EntityType.Artillery && this.btnArtillery) this.btnArtillery.enabled = false
+        if (unitType == EntityType.Cavalry && this.btnCavalry) this.btnCavalry.enabled = false
       }
     })
 
@@ -1060,14 +1060,14 @@ class GameState implements State {
 
   calculateUnitsAvailable() {
 
-    if (this.btnTroop && this.btnTestudo && this.btnArcher && this.btnKnight && this.btnArtillery && this.btnCavalry) {
+    if (this.btnTroop && this.btnTestudo && this.btnArcher && this.btnKnight) {
 
       this.btnTroop.data = '' + this.calculateAvailable(EntityType.Troop)
       this.btnTestudo.data = '' + this.calculateAvailable(EntityType.Testudo)
       this.btnArcher.data = '' + this.calculateAvailable(EntityType.Archer)
       this.btnKnight.data = '' + this.calculateAvailable(EntityType.Knight)
-      this.btnArtillery.data = '' + this.calculateAvailable(EntityType.Artillery)
-      this.btnCavalry.data = '' + this.calculateAvailable(EntityType.Cavalry)
+      if (this.btnArtillery) this.btnArtillery.data = '' + this.calculateAvailable(EntityType.Artillery)
+      if (this.btnCavalry) this.btnCavalry.data = '' + this.calculateAvailable(EntityType.Cavalry)
 
       this.btnGold.data = '' + this.playerBattleGold
 
@@ -1124,14 +1124,15 @@ class GameState implements State {
 
 
     let count = 0;
-    // Calculate total width of all buttons to center them
-    const unitButtonCount = unitTypes.length; // 6 units
+    // Show only 4 unit types (Troop, Testudo, Archer, Knight)
+    const visibleUnits = unitTypes.slice(0, 4);
+    const unitButtonCount = visibleUnits.length; // 4 units
     const totalButtonsWidth = (size * 1.2) * unitButtonCount; // size + margin
     // Start X = (Width - TotalWidth) / 2 + (Half Button Size because position is centered)
     let refX = (drawEngine.canvasWidth - totalButtonsWidth) / 2 + size * 0.6;
 
 
-    for (const unitType of unitTypes) {
+    for (const unitType of visibleUnits) {
 
       const cost = gameDatabase.getDataValues(unitType).cost
       const button = this.createUnitButton(refX + (size * 1.2) * count++, posY, size, unitType, "", `Place ${unitNames[unitType]} for ${cost}$`);
@@ -1140,8 +1141,6 @@ class GameState implements State {
       if (unitType == EntityType.Testudo) this.btnTestudo = button
       if (unitType == EntityType.Archer) this.btnArcher = button
       if (unitType == EntityType.Knight) this.btnKnight = button
-      if (unitType == EntityType.Artillery) this.btnArtillery = button
-      if (unitType == EntityType.Cavalry) this.btnCavalry = button
 
       this.placeButtons.push(button);
     }
@@ -1168,7 +1167,7 @@ class GameState implements State {
 
 
     // Figth
-    this.btnFigth = new Button(drawEngine.canvasWidth / 2, 50, 200, 110, "⚔", "Figth!", 100);
+    this.btnFigth = new Button(drawEngine.canvasWidth / 2, 100 * scale, 200, 110, "⚔", "Figth!", 100);
     this.btnFigth.visible = true
     this.btnFigth.clickCB = () => {
       if (this.battleStatus == BattleStatus.prepare) {
