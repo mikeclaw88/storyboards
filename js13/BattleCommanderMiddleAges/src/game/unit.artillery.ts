@@ -10,7 +10,7 @@ export class Artillery extends Archer {
         super(position, sizeFactor, team, EntityType.Artillery)
 
         // force image
-        this.getImage(EntityType.Artillery, (team == Team.Bravo))
+        this.getImage(EntityType.Artillery, team)
 
         this.loadProperties() 
 

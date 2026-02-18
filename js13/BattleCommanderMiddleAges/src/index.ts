@@ -6,6 +6,7 @@ import { Timer } from './utils';
 import { createUnitsDatabase } from './game-database';
 import { summaryState } from './game-states/summary.state';
 import { unitsState } from './game-states/units.state';
+import { setHumanV2Source } from './game/sprite-colorizer';
 
 // export const debug = {
 //   showQuadtree: false,
@@ -78,7 +79,13 @@ const loadImage = async (url: string) => {
 }
 
 
-loadImage(imageData).then(runApp)
+Promise.all([
+  loadImage(imageData),
+  loadImage('assets/humanv2.png')
+]).then(([appImage, humanV2]) => {
+  setHumanV2Source(humanV2);
+  runApp(appImage);
+})
 
 
 

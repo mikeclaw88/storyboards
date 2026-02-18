@@ -10,6 +10,7 @@ import { UnitData, gameDatabase } from "@/game-database"
 import { gameLevel } from "./game-level"
 import { EntityType, Team, unitTypes } from "./EntityType"
 import { appSprite, transparent } from "@/index"
+import { colorizeHumanSprite } from "./sprite-colorizer"
 
 export default class Unit extends GameObject {
 
@@ -20,7 +21,7 @@ export default class Unit extends GameObject {
 
     name: string
 
-    image = new Image();
+    image: CanvasImageSource = new Image();
     imageSize = new Vector(32, 32);
 
     targetPosition: Vector | undefined
@@ -91,8 +92,7 @@ export default class Unit extends GameObject {
 
         this.type = type
 
-        // if (type == EntityType.Gold)
-        this.getImage(type, (team == Team.Bravo))
+        this.getImage(type, team)
 
         this.loadProperties()
 
@@ -246,107 +246,26 @@ export default class Unit extends GameObject {
     }
 
 
-    getImage(index: number = 0, mutate: boolean = false) {
-        this.image = Unit.prepareImage(index, mutate)
+    getImage(index: number = 0, team: number = Team.Alpha) {
+        this.image = Unit.prepareImage(index, team)
     }
 
-    static prepareImage(index: number = 0, mutate: boolean = false) {
+    static prepareImage(index: number = 0, team: number = Team.Alpha): CanvasImageSource {
 
-        const canvas = c2d.cloneNode();
-        canvas.width = 32;
-        canvas.height = 32;
-        const ctx: CanvasRenderingContext2D = canvas.getContext('2d');
-
-        ctx.imageSmoothingEnabled = false;
-
-        // Dibuja la imagen en el lienzo
-        ctx.beginPath();
-
-
-        // // bright
-        // ctx.filter = 'brightness(200) blur()';
-        // ctx.drawImage(appSprite, 0 + (32 * Math.floor(index % 8)), 32 * Math.floor(index / 8), 32, 32, 0-1, 0-1, 32, 32); // 
-
-        // // shadow
-        // ctx.filter = 'brightness(0)';
-        // ctx.drawImage(appSprite, 0 + (32 * Math.floor(index % 8)), 32 * Math.floor(index / 8), 32, 32, 0+1, 0+1, 32, 32); // 
-
-        switch(index) {
-            case EntityType.Knight: index = 1; break;
-            case EntityType.Cavalry: index = 2; break;
-            default: index = 0
+        // Knight and Cavalry keep their existing PNG sprites
+        if (index === EntityType.Knight) {
+            let img = new Image();
+            img.src = 'assets/knight.png';
+            return img;
+        }
+        if (index === EntityType.Cavalry) {
+            let img = new Image();
+            img.src = 'assets/cavalry.png';
+            return img;
         }
 
-        // image
-        // ctx.filter = 'drop-shadow(1px 1px 1px #222)';
-        // ctx.drawImage(appSprite, 0 + (32 * Math.floor(index % 8)), 32 * Math.floor(index / 8), 32, 32, 0, 0, 32, 32); // 
-
-        let source = 'assets/human.png'
-        if (index == 1) source = 'assets/knight.png'
-        if (index == 2) source = 'assets/cavalry.png'
-
-        // Since we are inside a static method returning a CANVAS/IMAGE, we can't easily async load here without refactoring the whole game flow.
-        // BUT, the game uses `ctx.drawImage` on what it *thinks* is a canvas/image.
-        
-        // HACK: We will try to load the image onto the canvas context immediately if possible, 
-        // OR we change how `getImage` works to just set the `.src` of an Image object directly.
-        
-        // The original code creates a 32x32 canvas, draws the sprite slice onto it, and returns the image of that canvas.
-        // We can skip the slicing and just return the image itself if we don't need color mutation.
-        // However, color mutation logic follows below.
-        
-        let img = new Image();
-        img.src = source;
-        
-        // We need to wait for load to draw it to the context for mutation.
-        // Since we can't wait here (synchronous return), this is tricky.
-        // For now, let's assume the browser caches it quickly or we return the image object directly
-        // and handle mutation later?
-        
-        // The original `appSprite` was likely preloaded.
-        
-        // Let's try to draw it assuming it might be ready, or use the original appSprite if available?
-        // No, user wants independent PNGs.
-        
-        // Let's rely on the fact that `img` will load eventually. 
-        // But `ctx.drawImage(img...)` will fail if not loaded.
-        
-        img.onload = () => {
-             ctx.filter = 'drop-shadow(1px 1px 1px #222)';
-             ctx.drawImage(img, 0, 0, 32, 32); 
-             if (mutate) {
-                 // Re-apply mutation logic
-                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                 const data = imageData.data;
-                 const targetColor = [255, 0, 0, 255]; 
-                 const newColor = [0, 0, 255, 255]; 
-                 for (let i = 0; i < data.length; i += 4) {
-                    if (data[i] === targetColor[0] && data[i + 1] === targetColor[1] && data[i + 2] === targetColor[2]) {
-                        data[i] = newColor[0];
-                        data[i + 1] = newColor[1];
-                        data[i + 2] = newColor[2];
-                        data[i + 3] = newColor[3];
-                    }
-                 }
-                 ctx.putImageData(imageData, 0, 0);
-             }
-        }
-        
-        // We return the 'image' object which is actually just a holder for the dataURL of the canvas.
-        // Original code:
-        // let image = new Image()
-        // image.src = canvas.toDataURL();
-        // return image
-        
-        // Since `onload` is async, `toDataURL` will be empty initially.
-        // This break sync logic.
-        
-        // ALTERNATIVE: Just return the `img` object we created with the direct source!
-        // We lose the "mutation" (red->blue team color) for now unless we preload.
-        // But user asked to "fix code... to point".
-        
-        return img; 
-
+        // All human-type units use the colorizer (synchronous, humanv2.jpg is preloaded)
+        return colorizeHumanSprite(index, team);
     }
 
 
