@@ -44,7 +44,7 @@ class GamePresenter {
         const circlePosition = unit.Position.clone().add(new Vector(0, -unit._z))
         const rectPosition = circlePosition.add(renderSize.clone().scale(-.5)); //+ Math.abs(Math.sin(time*10)*10)
 
-        let realSize = unit.imageSize.clone().scale(renderSize.x / 32)//.scale(10);
+        let realSize = unit.imageSize.clone().scale(renderSize.x / Math.max(unit.imageSize.x, unit.imageSize.y));
 
         context.save();
         context.translate(rectPosition.x + realSize.x / 2, rectPosition.y + realSize.y / 2);
@@ -54,7 +54,7 @@ class GamePresenter {
         //  drawEngine.drawRectangle(new Vector(-realSize.x / 2, -realSize.y / 2), renderSize, { stroke: color, fill: 'blue' });
 
         context.imageSmoothingEnabled = false;
-        context.drawImage(unit.image, 0, 0, unit.imageSize.x, unit.imageSize.y, -realSize.x / 2, -realSize.y / 2, realSize.y, realSize.y);
+        context.drawImage(unit.image, 0, 0, unit.imageSize.x, unit.imageSize.y, -realSize.x / 2, -realSize.y / 2, realSize.x, realSize.y);
 
         unit.drawChilds(context, realSize)
 
@@ -83,7 +83,7 @@ class GamePresenter {
 
             let renderSize = unit.Size.clone().scale(2);
             const rectPosition = unit.Position.clone().add(new Vector(0, -unit._z)).add(renderSize.clone().scale(-.5));
-            let realSize = unit.imageSize.clone().scale(renderSize.x / 32);
+            let realSize = unit.imageSize.clone().scale(renderSize.x / Math.max(unit.imageSize.x, unit.imageSize.y));
 
             context.save();
             context.translate(rectPosition.x + realSize.x / 2, rectPosition.y + realSize.y / 2);

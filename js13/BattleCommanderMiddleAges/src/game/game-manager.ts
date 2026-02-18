@@ -10,7 +10,8 @@ import { drawEngine } from "@/core/draw-engine";
 import { rand } from "@/utils";
 import { SND_UNIT_DAMAGE } from "./game-sound";
 
-
+export interface DamageEvent { x: number; y: number; dmg: number; team: number }
+export const damageEvents: DamageEvent[] = [];
 
 // TODO - Special case for Artillery
 // Enemy target designation
@@ -137,11 +138,14 @@ export const manageUnitsCollision = (units: Unit[], dt: number, damageGlobalFact
           // Damage if other is attacking
           if (obj._currentAnim == obj._attackAnim && unit.stuntTime.elapsed()) { // || obj.type == EntityType.Cavalry )    && obj._currentAnim._finished
 
+            const dmg = obj.attackDamagePoints * damageGlobalFactor;
+
             if (unit.armorPoints == 0)
-              unit.healthPoints = Math.max(unit.healthPoints - obj.attackDamagePoints * damageGlobalFactor, 0);
+              unit.healthPoints = Math.max(unit.healthPoints - dmg, 0);
 
-            unit.armorPoints = Math.max(unit.armorPoints - obj.attackDamagePoints * damageGlobalFactor, 0);
+            unit.armorPoints = Math.max(unit.armorPoints - dmg, 0);
 
+            damageEvents.push({ x: unit.Position.x, y: unit.Position.y, dmg, team: obj.Team });
 
             if (unit.healthPoints == 0) {
               obj.killCount++;
@@ -167,22 +171,24 @@ export const manageUnitsCollision = (units: Unit[], dt: number, damageGlobalFact
 
 
           // direct massive damage
+          const dmgR = obj.attackDamagePoints * damageGlobalFactor;
+
           if (other instanceof Explosion) {
 
-            unit.healthPoints = Math.max(unit.healthPoints - obj.attackDamagePoints * damageGlobalFactor, 0);
+            unit.healthPoints = Math.max(unit.healthPoints - dmgR, 0);
 
           } else {
             // armor first then health
             if (unit.armorPoints == 0)
-              unit.healthPoints = Math.max(unit.healthPoints - obj.attackDamagePoints * damageGlobalFactor, 0);
-            unit.armorPoints = Math.max(unit.armorPoints - obj.attackDamagePoints * damageGlobalFactor, 0);
+              unit.healthPoints = Math.max(unit.healthPoints - dmgR, 0);
+            unit.armorPoints = Math.max(unit.armorPoints - dmgR, 0);
 
             // arrow auto destroy
             other.healthPoints = 0;
 
           }
 
-
+          damageEvents.push({ x: unit.Position.x, y: unit.Position.y, dmg: dmgR, team: obj.Team });
           unit.stuntTime.set(.2)
 
 
@@ -211,11 +217,16 @@ export const manageUnitsCollision = (units: Unit[], dt: number, damageGlobalFact
 
     unit.Velocity.add(unit.Acceleration);
 
+    // Bottom UI bar boundary
+    const scale = drawEngine.canvasWidth / 540;
+    const safeBottom = drawEngine.canvasHeight * 0.05;
+    const bottomBound = drawEngine.canvasHeight - safeBottom - 120 * scale;
+
     // Check collisions with edges of map
     if (unitNewPos.x + unit.Radius > drawEngine.canvasWidth || unitNewPos.x <= 0) {
       unit.Velocity.x *= -.95;
     }
-    if (unitNewPos.y + unit.Radius > drawEngine.canvasHeight || unitNewPos.y <= 0) {
+    if (unitNewPos.y + unit.Radius > bottomBound || unitNewPos.y <= 0) {
       unit.Velocity.y *= -.95;
     }
 
@@ -230,13 +241,12 @@ export const manageUnitsCollision = (units: Unit[], dt: number, damageGlobalFact
       unit.Position.add(new Vector(unit.Size.x / 2, 0));
       unit.Velocity.scale(0);
     }
-    //bottom
-    if (unit.Position.y + unit.Size.y > drawEngine.canvasHeight) {
+    //bottom - clamp to above the UI bar
+    if (unit.Position.y + unit.Size.y > bottomBound) {
       unit.Position.add(new Vector(0, -unit.Size.y / 2));
       unit.Velocity.scale(0);
     }
-    // top (adjust for 0-based top in vertical mode, but respect UI if needed)
-    // Actually, in vertical mode we want full height, maybe 0.
+    // top
     if (unit.Position.y - unit.Size.y < 0) {
       unit.Position.add(new Vector(0, unit.Size.y / 2));
       unit.Velocity.scale(0);

@@ -49,7 +49,7 @@ export function createUnitsDatabase() {
 
   allDataBase.push({
     type: EntityType.Archer, name: unitNames[EntityType.Archer],
-    cost: 120, health: 100, armor: 20, speedFactor: .2,
+    cost: 120, health: 75, armor: 20, speedFactor: .2,
     attackCoolDown: 0.3, attackDamage: 50, attackRangeFactor: 14,
     shootDamage: shootDamageArcher, shootRangeFactor: 10, shootCoolDown: 0.5,
   });

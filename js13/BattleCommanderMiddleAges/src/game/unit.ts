@@ -10,7 +10,7 @@ import { UnitData, gameDatabase } from "@/game-database"
 import { gameLevel } from "./game-level"
 import { EntityType, Team, unitTypes } from "./EntityType"
 import { appSprite, transparent } from "@/index"
-import { colorizeHumanSprite } from "./sprite-colorizer"
+import { colorizeHumanSprite, getKnightSprite } from "./sprite-colorizer"
 
 export default class Unit extends GameObject {
 
@@ -248,15 +248,16 @@ export default class Unit extends GameObject {
 
     getImage(index: number = 0, team: number = Team.Alpha) {
         this.image = Unit.prepareImage(index, team)
+        if (this.image instanceof HTMLCanvasElement) {
+            this.imageSize = new Vector(this.image.width, this.image.height);
+        }
     }
 
     static prepareImage(index: number = 0, team: number = Team.Alpha): CanvasImageSource {
 
-        // Knight and Cavalry keep their existing PNG sprites
+        // Knight uses pre-scaled canvas (knight.png is 1024x1024)
         if (index === EntityType.Knight) {
-            let img = new Image();
-            img.src = 'assets/knight.png';
-            return img;
+            return getKnightSprite();
         }
         if (index === EntityType.Cavalry) {
             let img = new Image();
@@ -302,9 +303,6 @@ export default class Unit extends GameObject {
 
         // }
 
-        if (!this.stuntTime.elapsed()) {
-            drawEngine.drawCircle(this.Position, this.Radius * .8, { stroke: transparent, fill: ['', 'rgb(255,0,0,.4)', 'rgb(0,0,255,.4)'][this.Team], lineWidth: 3 }); // this.Size.length()
-        }
         
         
         // drawEngine.drawText('' + this._z, 15, this.Position.x, this.Position.y-50); // + '/' + this.damagePoints

@@ -22,6 +22,23 @@ const HAIR_COLORS: [number, number, number][] = [
   [100, 60, 30], [160, 80, 40], [80, 50, 25], [180, 50, 20]
 ];
 
+/** Shift a color toward warm (Alpha/red) or cool (Bravo/blue) */
+function teamTint(color: [number, number, number], team: number, strength: number): [number, number, number] {
+  const [r, g, b] = color;
+  if (team === Team.Alpha) {
+    return [
+      Math.min(255, Math.round(r + (255 - r) * strength)),
+      Math.round(g * (1 - strength * 0.4)),
+      Math.round(b * (1 - strength * 0.6))
+    ];
+  }
+  return [
+    Math.round(r * (1 - strength * 0.6)),
+    Math.round(g * (1 - strength * 0.4)),
+    Math.min(255, Math.round(b + (255 - b) * strength))
+  ];
+}
+
 // Unit type palettes indexed by EntityType
 const UNIT_PALETTES: Record<number, {
   pants: [number, number, number],
@@ -93,21 +110,45 @@ export function isHumanV2Ready(): boolean {
 }
 
 /**
- * Colorize a 32x32 sprite from humanv2.jpg for a given unit type and team.
+ * Colorize a sprite from humanv2.jpg for a given unit type and team.
+ * Output preserves source aspect ratio at up to MAX_SIZE on the longest axis.
  * Returns an HTMLCanvasElement (valid CanvasImageSource).
  */
-export function colorizeHumanSprite(type: number, team: number): HTMLCanvasElement {
-  const OUTPUT_SIZE = 32;
+let knightCanvas: HTMLCanvasElement | null = null;
+
+export function setKnightSource(img: HTMLImageElement) {
+  const MAX_SIZE = 64;
+  const aspect = img.width / img.height;
+  const outW = Math.round(aspect >= 1 ? MAX_SIZE : MAX_SIZE * aspect);
+  const outH = Math.round(aspect >= 1 ? MAX_SIZE / aspect : MAX_SIZE);
   const canvas = document.createElement('canvas');
-  canvas.width = OUTPUT_SIZE;
-  canvas.height = OUTPUT_SIZE;
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(img, 0, 0, outW, outH);
+  knightCanvas = canvas;
+}
+
+export function getKnightSprite(): HTMLCanvasElement {
+  return knightCanvas!;
+}
+
+export function colorizeHumanSprite(type: number, team: number): HTMLCanvasElement {
+  const MAX_SIZE = 64;
+  const aspect = cropW / cropH; // < 1 for tall characters
+  const outW = Math.round(aspect >= 1 ? MAX_SIZE : MAX_SIZE * aspect);
+  const outH = Math.round(aspect >= 1 ? MAX_SIZE / aspect : MAX_SIZE);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
   const ctx = canvas.getContext('2d')!;
 
   if (!sourceData) {
     return canvas;
   }
 
-  const outData = ctx.createImageData(OUTPUT_SIZE, OUTPUT_SIZE);
+  const outData = ctx.createImageData(outW, outH);
   const out = outData.data;
   const src = sourceData.data;
 
@@ -116,32 +157,37 @@ export function colorizeHumanSprite(type: number, team: number): HTMLCanvasEleme
   const shirtColor = team === Team.Bravo ? palette.bravoShirt : palette.alphaShirt;
   const pantsColor = palette.pants;
 
-  // Random skin and hair per unit
-  const skinColor = SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
-  const hairColor = HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)];
+  // Random skin and hair per unit, tinted toward team color
+  const skinColor = teamTint(SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)], team, 0.2);
+  const hairColor = teamTint(HAIR_COLORS[Math.floor(Math.random() * HAIR_COLORS.length)], team, 0.4);
 
   const MASK_THRESHOLD = 30 / 255;
+  const LUM_FLOOR = 0.35;
+  const LUM_RANGE = 1 - LUM_FLOOR;
 
-  for (let oy = 0; oy < OUTPUT_SIZE; oy++) {
-    for (let ox = 0; ox < OUTPUT_SIZE; ox++) {
+
+  for (let oy = 0; oy < outH; oy++) {
+    for (let ox = 0; ox < outW; ox++) {
       // Map output pixel to source coords within crop bounds
-      const srcX = Math.floor(cropX + ox * (cropW / OUTPUT_SIZE));
-      const srcY = Math.floor(cropY + oy * (cropH / OUTPUT_SIZE));
+      const srcX = Math.floor(cropX + ox * (cropW / outW));
+      const srcY = Math.floor(cropY + oy * (cropH / outH));
 
-      // Read left half (color reference) for luminance
+      // Read left half (color reference)
       const leftI = (srcY * imgWidth + srcX) * 4;
       const lr = src[leftI];
       const lg = src[leftI + 1];
       const lb = src[leftI + 2];
-      const luminance = (lr * 0.299 + lg * 0.587 + lb * 0.114) / 255;
+      const la = src[leftI + 3];
 
-      const outI = (oy * OUTPUT_SIZE + ox) * 4;
+      const outI = (oy * outW + ox) * 4;
 
-      // If left side is white/near-white, this is background — skip (transparent)
-      if (Math.min(lr, lg, lb) > 240) {
+      // Transparent in source = transparent in output
+      if (la < 128) {
         out[outI + 3] = 0;
         continue;
       }
+
+      const luminance = (lr * 0.299 + lg * 0.587 + lb * 0.114) / 255;
 
       // Read right half (mask)
       const rightI = (srcY * imgWidth + (srcX + halfW)) * 4;
@@ -157,22 +203,19 @@ export function colorizeHumanSprite(type: number, team: number): HTMLCanvasEleme
       const totalMask = skinMask + shirtMask + pantsMask + hairMask;
 
       if (totalMask < MASK_THRESHOLD) {
-        // No mask data — outline (dark) or background, determined by left-side luminance
-        if (luminance < 0.3) {
-          // Outline - black
-          out[outI] = 0;
-          out[outI + 1] = 0;
-          out[outI + 2] = 0;
-          out[outI + 3] = 255;
-        } else {
-          // Transparent background
-          out[outI + 3] = 0;
-        }
+        // No mask — pass through original pixel (eyes, outlines, details)
+        out[outI] = lr;
+        out[outI + 1] = lg;
+        out[outI + 2] = lb;
+        out[outI + 3] = la;
       } else {
-        // Colorize: weighted blend * luminance
-        const r = (shirtMask * shirtColor[0] + pantsMask * pantsColor[0] + hairMask * hairColor[0] + skinMask * skinColor[0]) * luminance;
-        const g = (shirtMask * shirtColor[1] + pantsMask * pantsColor[1] + hairMask * hairColor[1] + skinMask * skinColor[1]) * luminance;
-        const b = (shirtMask * shirtColor[2] + pantsMask * pantsColor[2] + hairMask * hairColor[2] + skinMask * skinColor[2]) * luminance;
+        // Remap luminance: [0..1] → [LUM_FLOOR..1] to prevent dark crushing
+        const lum = LUM_FLOOR + LUM_RANGE * luminance;
+
+        // Colorize: weighted blend * remapped luminance
+        const r = (shirtMask * shirtColor[0] + pantsMask * pantsColor[0] + hairMask * hairColor[0] + skinMask * skinColor[0]) * lum;
+        const g = (shirtMask * shirtColor[1] + pantsMask * pantsColor[1] + hairMask * hairColor[1] + skinMask * skinColor[1]) * lum;
+        const b = (shirtMask * shirtColor[2] + pantsMask * pantsColor[2] + hairMask * hairColor[2] + skinMask * skinColor[2]) * lum;
 
         out[outI] = Math.min(255, Math.round(r));
         out[outI + 1] = Math.min(255, Math.round(g));

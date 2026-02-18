@@ -49,8 +49,8 @@ export class Level {
         this.theme = randInt(0, themeCollection.length + 1)
 
         let dataTable = [
-            [10, EntityType.Troop, themeDef.forest, 2, 0], // level 1
-            [50, EntityType.Archer, themeDef.dessert, 1.5, 0], // level 2
+            [12, EntityType.Troop, themeDef.forest, 2, 0], // level 1
+            [50, EntityType.Troop, themeDef.dessert, 1.5, 0], // level 2
             [100, EntityType.Knight, themeDef.forest, 1.5, 0], // level 3
             [20, EntityType.Artillery, themeDef.dessert, 1.5, 0], // level 4
             [30, EntityType.Cavalry, themeDef.snow, 1.2, 1], // level 5
