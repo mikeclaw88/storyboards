@@ -31,7 +31,7 @@ import { Rectangle } from '@/quadtree/Rectangle';
 import { Indexable } from '@/quadtree/types';
 import { gameDatabase } from '@/game-database';
 import { createArrow, createCannonBall } from '@/game/game-weapons';
-import { enemyTargetDesignation, manageUnitsCollision } from '@/game/game-manager';
+import { enemyTargetDesignation, manageUnitsCollision, damageEvents } from '@/game/game-manager';
 import { Level, gameLevel } from '@/game/game-level';
 import { GameMap } from '@/game/game-map';
 import { campaingState } from './campaign.state';
@@ -40,7 +40,7 @@ import { Label } from '@/game/label';
 import { Testudo } from '@/game/unit.testudo';
 import { Cavalry } from '@/game/unit.cavalry';
 
-
+let bgMusic: HTMLAudioElement | null = null;
 
 export const enum GameMode {
   easy = 1,
@@ -77,18 +77,16 @@ class GameState implements State {
   placeButtons: Button[] = []
 
   btnFigth!: Button;
-  btnClear!: Button;
 
   btnTroop!: Button;
   btnTestudo!: Button;
   btnArcher!: Button;
-  btnKnight!: Button;
   btnArtillery!: Button;
   btnCavalry!: Button;
-  btnGold!: Button;
 
 
   blood: Particle[] = []
+  dmgNumbers: { x: number; y: number; txt: string; team: number; age: number }[] = []
 
   gameData: GameResultData = {
     result: 0,
@@ -188,6 +186,7 @@ class GameState implements State {
     this.units = []
     this.projectiles = []
     this.blood = []
+    this.dmgNumbers = []
 
     // Everyone quiet
     this.units.forEach(unit => {
@@ -221,6 +220,14 @@ class GameState implements State {
 
     drawEngine.init()
 
+    // Background music (looping)
+    if (!bgMusic) {
+      bgMusic = new Audio('assets/LWVBTHN5th.ogg');
+      bgMusic.loop = true;
+      bgMusic.volume = 0.4;
+    }
+    bgMusic.play().catch(() => {});
+
     // Butons
     this.createGameButtons();
 
@@ -232,9 +239,8 @@ class GameState implements State {
         if (unitType == EntityType.Troop) this.btnTroop.enabled = false
         if (unitType == EntityType.Testudo) this.btnTestudo.enabled = false
         if (unitType == EntityType.Archer) this.btnArcher.enabled = false
-        if (unitType == EntityType.Knight) this.btnKnight.enabled = false
-        if (unitType == EntityType.Artillery) this.btnArtillery.enabled = false
-        if (unitType == EntityType.Cavalry) this.btnCavalry.enabled = false
+        if (unitType == EntityType.Artillery && this.btnArtillery) this.btnArtillery.enabled = false
+        if (unitType == EntityType.Cavalry && this.btnCavalry) this.btnCavalry.enabled = false
       }
     })
 
@@ -481,6 +487,15 @@ class GameState implements State {
     // Unit Physics for every frame
     manageUnitsCollision(this.units, dt, Math.min(1, 1 / this.level.levelSizefactor));
 
+    // Drain damage events into floating numbers
+    for (const e of damageEvents) {
+      this.dmgNumbers.push({ x: e.x, y: e.y, txt: Math.round(e.dmg).toString(), team: e.team, age: 0 });
+    }
+    damageEvents.length = 0;
+
+    // Update & cull damage numbers
+    this.dmgNumbers = this.dmgNumbers.filter(d => { d.age++; return d.age < 60; });
+
 
     // DRAW SCENE
 
@@ -505,7 +520,22 @@ class GameState implements State {
 
     drawEngine.drawItems([...this.units, ...this.projectiles, ...this.labels])
 
-
+    // Floating damage numbers
+    const ctx = drawEngine.context;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const d of this.dmgNumbers) {
+      const t = d.age / 60;
+      ctx.globalAlpha = 1 - t;
+      ctx.font = `bold ${12 + 4 * (1 - t)}px Impact, sans-serif`;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2;
+      const dy = d.y - d.age * 0.8;
+      ctx.strokeText(d.txt, d.x, dy);
+      ctx.fillStyle = d.team === Team.Alpha ? '#f44' : '#48f';
+      ctx.fillText(d.txt, d.x, dy);
+    }
+    ctx.globalAlpha = 1;
 
     // Fog of war
     if (this.level.fogOfWar && (this.battleStatus != BattleStatus.ended || this.teamAlpha.length == 0 || this.teamBravo.length == 0)) {
@@ -603,10 +633,15 @@ class GameState implements State {
 
         campaingState.levelUnlock = (this.level.levelIndex + 1) + 1;
 
-        summaryState.setGameResult(this.gameData);
-
         setTimeout(() => {
-          gameStateMachine.setState(summaryState);
+          if (result === GameResult.win && this.level.levelIndex < this.level.finalLevelIndex) {
+            this.next();
+          } else if (result === GameResult.win) {
+            summaryState.setGameResult(this.gameData);
+            gameStateMachine.setState(summaryState);
+          } else {
+            this.init(this.level.levelIndex);
+          }
         }, 2000);
 
 
@@ -693,29 +728,31 @@ class GameState implements State {
 
     // Draw UI
     const scale = drawEngine.canvasWidth / 540; // Base scale on 540 width
-    
+    const safeTop = drawEngine.canvasHeight * 0.05;
+    const safeBottom = drawEngine.canvasHeight * 0.05;
+
     // Top Bar Background
-    drawEngine.drawRectangle(new Vector(0, 0), new Vector(drawEngine.canvasWidth, 80 * scale), { stroke: transparent, fill: 'rgb(0,0,0,.5)' })
+    drawEngine.drawRectangle(new Vector(0, 0), new Vector(drawEngine.canvasWidth, safeTop + 80 * scale), { stroke: transparent, fill: 'rgb(0,0,0,.5)' })
 
     // Team Power Bars (Scaled)
     const barWidth = drawEngine.canvasWidth * 0.4;
     const barHeight = 15 * scale;
-    const barY = 40 * scale;
-    
+    const barY = safeTop + 20 * scale;
+
     drawEngine.drawBar(drawEngine.canvasWidth * 0.25, barY, this.teamAlpha.length, this.gameData.teamAlphaBeginCount, barWidth, '#500', '#f00', barHeight, false)
     drawEngine.drawBar(drawEngine.canvasWidth * 0.75, barY, this.teamBravo.length, this.gameData.teamBravoBeginCount, barWidth, '#005', '#00f', barHeight, true)
 
     // Center Timer / Score
     const xCenter = drawEngine.canvasWidth / 2;
     if (this.battleStatus == BattleStatus.figth) {
-      drawEngine.drawText('' + this.formatTimeRemaining((-1 * this.level.levelTimer.get())), 30 * scale, xCenter, 50 * scale);
+      drawEngine.drawText('' + this.formatTimeRemaining((-1 * this.level.levelTimer.get())), 30 * scale, xCenter, safeTop + 30 * scale);
     } else {
-       drawEngine.drawText('VS', 30 * scale, xCenter, 50 * scale);
+       drawEngine.drawText('VS', 30 * scale, xCenter, safeTop + 30 * scale);
     }
-    
-    // Bottom Deck Area Background
-    const deckHeight = 140 * scale;
-    drawEngine.drawRectangle(new Vector(0, drawEngine.canvasHeight - deckHeight), new Vector(drawEngine.canvasWidth, deckHeight), { stroke: '#333', fill: '#222' })
+
+    // Bottom Deck Area Background — extends to canvas edge but content stays in safe area
+    const deckTop = drawEngine.canvasHeight - safeBottom - 120 * scale;
+    drawEngine.drawRectangle(new Vector(0, deckTop), new Vector(drawEngine.canvasWidth, drawEngine.canvasHeight - deckTop), { stroke: '#333', fill: '#222' })
 
     // Buttons are drawn by their own _draw method, but we need to ensure their positions are updated if we want them dynamic. 
     // Since createGameButtons sets fixed positions, we rely on that.
@@ -787,15 +824,6 @@ class GameState implements State {
     let factor = this.level.levelSizefactor
     let size = gameDatabase.getUnitSize(this.currentUnitType).scale(factor)
 
-    let removeUnits = this.teamAlpha.filter(f => Vector.distance(f.Position, position) < this.removeUnitRadius * size.length())
-    removeUnits.forEach(unit => {
-
-      let cost = gameDatabase.getDataValues(unit.type).cost;
-      this.playerBattleGold += cost
-      this.gameData.teamAlphaCost -= cost;
-
-    })
-
     this.units = this.units.filter(f => f.Team != Team.Alpha || Vector.distance(f.Position, position) > this.removeUnitRadius * size.length())
 
 
@@ -814,14 +842,6 @@ class GameState implements State {
   private placeUnit(position: Vector) {
     if (!this.Active) return
     if (this.battleStatus == BattleStatus.ended) return
-
-    let cost = gameDatabase.getDataValues(this.currentUnitType).cost
-
-    if (cost > this.playerBattleGold) {
-      // sound(SND_UNIT_CANT_PLACE);
-      return
-    }
-
 
     let size = gameDatabase.getUnitSize(this.currentUnitType).scale(this.level.levelSizefactor)
 
@@ -842,7 +862,7 @@ class GameState implements State {
         // let { freePlace } = this.isPlaceFree(item.point, size.length());
         let { freePlace } = this.allowedPlace(item.point, size, this.level.levelSizefactor)
 
-        if (freePlace && cost <= this.playerBattleGold) {
+        if (freePlace) {
 
           let u = this.newUnit(item.point, this.level.levelSizefactor, Team.Alpha, this.currentUnitType);
 
@@ -911,8 +931,10 @@ class GameState implements State {
    * @returns 
    */
   private isPlaceUnitAllowed(position: Vector): boolean {
-    // Only in bottom half, but above the UI bar (canvasHeight - 120)
-    return position.y > drawEngine.canvasHeight / 2 && position.y < drawEngine.canvasHeight - 120;
+    const scale = drawEngine.canvasWidth / 540;
+    const safeBottom = drawEngine.canvasHeight * 0.05;
+    const bottomBound = drawEngine.canvasHeight - safeBottom - 120 * scale;
+    return position.y > drawEngine.canvasHeight / 2 && position.y < bottomBound;
   }
 
 
@@ -1029,10 +1051,6 @@ class GameState implements State {
     }
 
 
-    let cost = gameDatabase.getDataValues(unit.type).cost;
-    this.playerBattleGold -= cost
-    this.gameData.teamAlphaCost += cost;
-
     return unit
   }
 
@@ -1059,26 +1077,13 @@ class GameState implements State {
 
 
   calculateUnitsAvailable() {
+    const countByType = (type: number) => this.teamAlpha.filter(u => u.type === type).length;
 
-    if (this.btnTroop && this.btnTestudo && this.btnArcher && this.btnKnight && this.btnArtillery && this.btnCavalry) {
-
-      this.btnTroop.data = '' + this.calculateAvailable(EntityType.Troop)
-      this.btnTestudo.data = '' + this.calculateAvailable(EntityType.Testudo)
-      this.btnArcher.data = '' + this.calculateAvailable(EntityType.Archer)
-      this.btnKnight.data = '' + this.calculateAvailable(EntityType.Knight)
-      this.btnArtillery.data = '' + this.calculateAvailable(EntityType.Artillery)
-      this.btnCavalry.data = '' + this.calculateAvailable(EntityType.Cavalry)
-
-      this.btnGold.data = '' + this.playerBattleGold
-
-    }
-  }
-
-
-
-  private calculateAvailable(type: number) {
-    // return (this.calculateGold() / gameDatabase.getDataValues(type).cost).toFixed(1) //Math.floor()
-    return Math.floor(this.playerBattleGold / gameDatabase.getDataValues(type).cost)
+    if (this.btnTroop) this.btnTroop.data = '' + countByType(EntityType.Troop)
+    if (this.btnTestudo) this.btnTestudo.data = '' + countByType(EntityType.Testudo)
+    if (this.btnArcher) this.btnArcher.data = '' + countByType(EntityType.Archer)
+    if (this.btnArtillery) this.btnArtillery.data = '' + countByType(EntityType.Artillery)
+    if (this.btnCavalry) this.btnCavalry.data = '' + countByType(EntityType.Cavalry)
   }
 
 
@@ -1091,84 +1096,42 @@ class GameState implements State {
 
     const scale = drawEngine.canvasWidth / 540;
     const size = 60 * scale; // Scale button size
-    const posY = drawEngine.canvasHeight - 60 * scale;
+    const safeTop = drawEngine.canvasHeight * 0.05;
+    const safeBottom = drawEngine.canvasHeight * 0.05;
+    const safeLeft = drawEngine.canvasWidth * 0.05;
+    // Button data text renders at center + height, so keep that within safe area
+    const posY = drawEngine.canvasHeight - safeBottom - size;
 
-    let btnExit = new Button(40, 40, size, size, "↩", "Back", 60);
+    let btnExit = new Button(safeLeft + size / 2, safeTop + size / 2, size, size, "🔄", "Try Again", 60);
     btnExit.visible = true
     btnExit.clickCB = () => {
-
-      // cancel each unit transaction if battle has not begun
-      if (this.battleStatus == BattleStatus.prepare) {
-        this.teamAlpha.forEach(unit => {
-          let cost = gameDatabase.getDataValues(unit.type).cost;
-          this.playerBattleGold += cost
-          this.gameData.teamAlphaCost -= cost;
-        })
-
-      }
-
-      // Back gold to bank
-      this.playerBankGold = this.playerBattleGold
-      this.playerBattleGold = 0
-
-      gameStateMachine.setState(campaingState);
+      gameStateMachine.setState(gameState);
+      gameState.init(gameState.level.levelIndex);
     };
     this.buttons.push(btnExit);
 
 
-    // Gold bank
-    this.btnGold = new Button(drawEngine.canvasWidth * 0.1, posY, size, size, "💰", "");
-    this.btnGold.clickCB = () => {
-    };
-    this.placeButtons.push(this.btnGold);
-
-
     let count = 0;
-    // Calculate total width of all buttons to center them
-    const unitButtonCount = unitTypes.length; // 6 units
-    const totalButtonsWidth = (size * 1.2) * unitButtonCount; // size + margin
-    // Start X = (Width - TotalWidth) / 2 + (Half Button Size because position is centered)
+    // Show 3 unit types: Troop (sword), Testudo (shield), Archer (bow)
+    const visibleUnits = unitTypes.slice(0, 3);
+    const unitButtonCount = visibleUnits.length;
+    const totalButtonsWidth = (size * 1.2) * unitButtonCount;
     let refX = (drawEngine.canvasWidth - totalButtonsWidth) / 2 + size * 0.6;
 
+    for (const unitType of visibleUnits) {
 
-    for (const unitType of unitTypes) {
-
-      const cost = gameDatabase.getDataValues(unitType).cost
-      const button = this.createUnitButton(refX + (size * 1.2) * count++, posY, size, unitType, "", `Place ${unitNames[unitType]} for ${cost}$`);
+      const button = this.createUnitButton(refX + (size * 1.2) * count++, posY, size, unitType, "", `Place ${unitNames[unitType]}`);
 
       if (unitType == EntityType.Troop) this.btnTroop = button
       if (unitType == EntityType.Testudo) this.btnTestudo = button
       if (unitType == EntityType.Archer) this.btnArcher = button
-      if (unitType == EntityType.Knight) this.btnKnight = button
-      if (unitType == EntityType.Artillery) this.btnArtillery = button
-      if (unitType == EntityType.Cavalry) this.btnCavalry = button
 
       this.placeButtons.push(button);
     }
 
 
-    // Clear
-    this.btnClear = new Button(drawEngine.canvasWidth * 0.9, posY, size, size, "🗑", "Clear");
-    this.btnClear.visible = true
-    this.btnClear.clickCB = () => {
-
-      // cancel each unit transaction
-      this.teamAlpha.forEach(unit => {
-        let cost = gameDatabase.getDataValues(unit.type).cost;
-        this.playerBattleGold += cost
-        this.gameData.teamAlphaCost -= cost;
-      })
-
-      this.units = this.units.filter(f => f.Team != Team.Alpha)
-
-      this.calculateUnitsAvailable()
-
-    };
-    this.placeButtons.push(this.btnClear);
-
-
     // Figth
-    this.btnFigth = new Button(drawEngine.canvasWidth / 2, 50, 200, 110, "⚔", "Figth!", 100);
+    this.btnFigth = new Button(drawEngine.canvasWidth / 2, safeTop + 100 * scale, 200, 110, "⚔", "Figth!", 100);
     this.btnFigth.visible = true
     this.btnFigth.clickCB = () => {
       if (this.battleStatus == BattleStatus.prepare) {
@@ -1184,7 +1147,7 @@ class GameState implements State {
 
 
     // Button Sounds
-    let bbb = [...[btnExit], ...[this.btnClear], ...[this.btnFigth], ...this.placeButtons]
+    let bbb = [...[btnExit], ...[this.btnFigth], ...this.placeButtons]
 
     Button.setHover(bbb)
 

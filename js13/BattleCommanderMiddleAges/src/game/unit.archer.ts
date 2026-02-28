@@ -4,6 +4,10 @@ import { EntityType } from "./EntityType";
 import { gamePresenter } from "./game-presenter";
 import { PI, Timer } from "@/utils";
 import { time } from "@/index";
+import crossbowUrl from '../../assets/humancrossbow.svg';
+
+const crossbowImg = new Image();
+crossbowImg.src = crossbowUrl;
 
 export class Archer extends Unit {
 
@@ -49,25 +53,11 @@ export class Archer extends Unit {
     }
 
     drawChilds(ctx: CanvasRenderingContext2D, realSize: Vector): void {
-
-        ctx.translate(this.Size.x * -.2, 0 + realSize.y * .2);
-        ctx.rotate(-.1) // +  Math.sin(time*8)*.05
-        // ctx.lineWidth = 2;
-        // ctx.fillStyle = "#a33";
-        // ctx.fillRect(0, 0, this.Size.x *.1, -this.Size.y);
-        // ctx.fillStyle = "#a80";
-        // ctx.fillRect(this.Size.x*.1, 0, this.Size.x*.05, -this.Size.y);
-
-        ctx.beginPath()
-        ctx.lineWidth = 5;
-        ctx.moveTo(this.Size.x, 0)
-        ctx.lineTo(0, 0)
-        ctx.moveTo(this.Size.x, 0)
-        ctx.lineTo(this.Size.x*.6, this.Size.y*.2)
-        ctx.moveTo(this.Size.x, 0)
-        ctx.lineTo(this.Size.x*.7, this.Size.y*-.2)
-        ctx.strokeStyle = "#a33";
-        ctx.stroke()
+        if (!crossbowImg.complete) return;
+        ctx.translate(this.Size.x * -.2, realSize.y * .05);
+        ctx.rotate(Math.PI / 2 - .3)
+        const s = this.Size.x * 1.2;
+        ctx.drawImage(crossbowImg, -s * .1, -s * .8, s, s);
     }
 
     _update(dt: any): void {

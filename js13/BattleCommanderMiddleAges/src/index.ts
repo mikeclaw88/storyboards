@@ -6,6 +6,7 @@ import { Timer } from './utils';
 import { createUnitsDatabase } from './game-database';
 import { summaryState } from './game-states/summary.state';
 import { unitsState } from './game-states/units.state';
+import { setHumanV2Source, setKnightSource } from './game/sprite-colorizer';
 
 // export const debug = {
 //   showQuadtree: false,
@@ -78,7 +79,15 @@ const loadImage = async (url: string) => {
 }
 
 
-loadImage(imageData).then(runApp)
+Promise.all([
+  loadImage(imageData),
+  loadImage('assets/humanv2.png'),
+  loadImage('assets/knight.png')
+]).then(([appImage, humanV2, knightImg]) => {
+  setHumanV2Source(humanV2);
+  setKnightSource(knightImg);
+  runApp(appImage);
+})
 
 
 
