@@ -1,0 +1,22 @@
+{
+  "characters": {
+    "images/alex.png": "Alex",
+    "images/ryan.png": "Ryan"
+  },
+  "animations": {
+    "standing":         { "anim": "Standing", "frameMap": [0] },
+    "turn_around":      { "anim": "Standing", "frameMap": [0] },
+    "walking_fwd":      { "anim": "Walking",  "frameMap": [0, 1] },
+    "walking_fwd_down": { "anim": "Walking",  "frameMap": [0, 1] },
+    "walking_fwd_up":   { "anim": "Walking",  "frameMap": [0, 1] },
+    "walking_up":       { "anim": "Walking",  "frameMap": [0, 1] },
+    "walking_down":     { "anim": "Walking",  "frameMap": [0, 1] },
+    "punching":         { "anim": "Punching", "frameMap": [0, 1, 2, 2] },
+    "kicking":          { "anim": "Kicking",  "frameMap": [0, 1, 2, 2] },
+    "hurt":             { "anim": "Hurt",     "frameMap": [0, 1, 1, 1, 2] },
+    "dying":            { "anim": "Hurt",     "frameMap": [3, 3, 4, 4, 3, 3, 4, 4, 3, 3, 4, 4] }
+  },
+  "frameSize": { "width": 128, "height": 128 },
+  "renderScale": 0.5,
+  "origin": { "x": 64, "y": 125 }
+}

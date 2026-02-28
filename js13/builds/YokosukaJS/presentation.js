@@ -239,9 +239,30 @@ function f_SpritesFromState(state) {
             let position = actor.position
             let scale = actor.scale || {x: 1.0, y: 1.0}
 
+            let videoConfig = state.resources["resources/video-config.json"]
+            let charName = videoConfig ? videoConfig.characters[actor.sprites] : null
+            let animConfig = videoConfig ? videoConfig.animations[actor.state_name] : null
+
+            if (charName && animConfig) {
+                let frameIdx = actor.frame_index < animConfig.frameMap.length ? actor.frame_index : 0
+                let frameNum = animConfig.frameMap[frameIdx] != null ? animConfig.frameMap[frameIdx] : 0
+                let framePath = "assets/videos/runtime/" + charName + "_" + animConfig.anim + "_" + frameNum + ".png"
+                let frameImage = state.resources[framePath]
+                if (frameImage) {
+                    let renderScale = videoConfig.renderScale || 1.0
+                    return {
+                        image: framePath,
+                        origin: videoConfig.origin,
+                        scale: {x: scale.x * renderScale, y: scale.y * renderScale},
+                        flip: flip,
+                        position: position
+                    }
+                }
+            }
+
 	        return {
                 image: actor.sprites,
-                spritesheet: actor.spritesheet, 
+                spritesheet: actor.spritesheet,
                 sprite_name: sprite_name,
                 scale: scale,
                 flip: flip,
